@@ -52,6 +52,17 @@ upload/
 img/warden/
 img/uploads/
 
+# Public UI images only; other files in images/ may be uploaded profile data.
+images/*
+!images/
+!images/icons/
+images/icons/*
+!images/icons/logo.png
+!images/logoM.png
+!images/back1.jpg
+!images/Mr Danajaya.jpg
+!images/p1.jpg
+
 # Legacy source file contains hardcoded private person data; keep local until sanitized.
 viewprofile.php
 
