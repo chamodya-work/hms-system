@@ -1,0 +1,66 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+config.php
+connection/connect.php
+
+# Secrets and OAuth/token artifacts
+client_secret*.json
+token*.json
+OAuth client
+*.pem
+*.key
+*.crt
+*.p12
+
+# Database dumps and backups
+sql/
+*.sql
+*.dump
+*.bak
+*.backup
+*.gz
+*.zip
+
+# Dependency folders
+vendor/
+vendor.old/
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Logs and runtime files
+logs/
+log/
+*.log
+cache/
+tmp/
+temp/
+*.tmp
+url.tmp
+test.curl
+tp
+
+# Uploaded or generated private files
+mail/tmp_files/
+tmp_files/
+uploads/
+upload/
+img/warden/
+img/uploads/
+
+# Legacy source file contains hardcoded private person data; keep local until sanitized.
+viewprofile.php
+
+# Local tooling and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# PHP tooling caches
+.phpunit.result.cache
+composer.phar

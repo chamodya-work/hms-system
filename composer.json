@@ -1,0 +1,9 @@
+{
+    "require": {
+        "symfony/mailer": "^5.4",
+        "symfony/google-mailer": "^5.4",
+        "hybridauth/hybridauth": "^3.11",
+        "tecnickcom/tcpdf": "^6.11",
+        "mpdf/mpdf": "^8.3"
+    }
+}
