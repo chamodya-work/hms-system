@@ -3,7 +3,7 @@
 .env.*
 !.env.example
 config.php
-connection/connect.php
+# connection/connect.php
 
 # Secrets and OAuth/token artifacts
 client_secret*.json
