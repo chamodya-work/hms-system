@@ -25,6 +25,18 @@ if (!isset($_SESSION['lang'])) {
 include 'header.php';
 include 'categoryMapping.php';
 
+$repair_columns = [];
+$repair_columns_result = mysqli_query($conn, "SHOW COLUMNS FROM repairs");
+if ($repair_columns_result) {
+    while ($column = mysqli_fetch_assoc($repair_columns_result)) {
+        $repair_columns[] = $column['Field'];
+    }
+}
+
+$has_review = in_array('review', $repair_columns);
+$has_supervisor_review = in_array('supervisor_review', $repair_columns);
+$has_file_path = in_array('file_path', $repair_columns);
+
 ?>
 <div style="width: 70%;margin:auto;">
     <div style="margin-bottom: 30px;">
@@ -34,10 +46,15 @@ include 'categoryMapping.php';
 
     <?php
     //show maintenance
-    $repair = "SELECT rep_id, req_date, cat,room_no,hos_id,floor_no,description, status,review,supervisor_review,file_path FROM repairs LEFT JOIN hostel_bed ON repairs.bed_id = hostel_bed.bed_id  ";
+    $review_select = $has_review ? "review" : "'' AS review";
+    $supervisor_review_select = $has_supervisor_review ? "supervisor_review" : "'' AS supervisor_review";
+    $file_path_select = $has_file_path ? "file_path" : "'' AS file_path";
+
+    $repair = "SELECT rep_id, req_date, cat,room_no,hos_id,floor_no,description, status,$review_select,$supervisor_review_select,$file_path_select FROM repairs LEFT JOIN hostel_bed ON repairs.bed_id = hostel_bed.bed_id  ";
 
     if ($_SESSION['cat'] == 1) {
-        $repair .= " WHERE stu_no = '" . $_SESSION['student_data']['data']['StudentNumber'] . "'";
+        $student_no = isset($_SESSION['student_data']['data']['StudentNumber']) ? $_SESSION['student_data']['data']['StudentNumber'] : '';
+        $repair .= " WHERE stu_no = '" . mysqli_real_escape_string($conn, $student_no) . "'";
     }
 
     $repair .= " ORDER BY rep_id DESC";
@@ -108,7 +125,7 @@ include 'categoryMapping.php';
                             $html .= $filePath=="" ? "No file uploaded" : "<a href='$filePath' target='_blank'>View File</a>";
                             $html .= "</td>";
 
-                    $disable = $statusText == "Completed" ? "" : "disabled";
+                    $disable = ($statusText == "Completed" && $has_review) ? "" : "disabled";
                     $isUpdateReview = $review==""?"Submit":"Update";
                     if ($_SESSION['cat'] == 1) {
                         $html .= "<td>
