@@ -37,13 +37,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             include '../getData.php';
             $response = stuData($username, $password);
 
-            if ($response['state'] == true) {
+            if (isset($response['state']) && $response['state'] == true) {
                 // Store data in session variables
                 $_SESSION["loggedin"] = true;
                 $_SESSION["username"] = $username;
                 $_SESSION["cat"] = "1";
                 $_SESSION['last_time'] = time();
                 header("location: ../index.php");
+            } else {
+                $password_err = "The username or password you entered was not valid.";
             }
         } else {
             $sql = "SELECT id, username, password, cat_id FROM users WHERE username = ?";

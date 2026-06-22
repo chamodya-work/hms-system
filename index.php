@@ -462,7 +462,9 @@ if ($_SESSION["cat"] == '1' || $_SESSION["cat"] == '3') {
 		<h2 class="section-title">
 			<i class="fa fa-users"></i> Subwarden Contact Information
 			<?php
-			echo $_SESSION['supervisor_category'];
+			if (!empty($_SESSION['supervisor_category'])) {
+				echo htmlspecialchars($_SESSION['supervisor_category']);
+			}
 			?>
 		</h2>
 

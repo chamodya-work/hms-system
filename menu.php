@@ -85,6 +85,15 @@
 				</a>
 			</li>-->
 			
+			<!-- Reset Password -->
+			<?php if (isset($_SESSION["cat"]) && $_SESSION["cat"] != '1') { ?>
+			<li class="nav-item">
+				<a class="nav-link" href="staff-reset-password.php">
+					<i class="fa fa-key"></i> Reset Password
+				</a>
+			</li>
+			<?php } ?>
+
 			<!-- Logout -->
 			<li class="nav-item">
 				<a class="nav-link" href="account/logout.php" onclick="return confirm('Are you sure you want to logout?');">
