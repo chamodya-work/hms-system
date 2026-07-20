@@ -284,16 +284,19 @@ include 'header.php';
 						<td><input type='text' class='form-control' name='m_otherincome' id='m_otherincome'
 								pattern="^[0-9]*$" value="<?php echo $existing['m_otherincome'] ?? ''; ?>"></td>
 						<div class="invalid-feedback">Please fill out this field!</div>
-						<td><input type='text' class='form-control' name='m_totincome' id='m_totincome' readonly></td>
+						<!-- <td><input type='text' class='form-control' name='m_totincome' id='m_totincome' readonly></td> -->
+						 <td><input type='text' class='form-control' name='m_totincome' id='m_totincome' readonly value="<?php echo $existing['m_totincome'] ?? ''; ?>"></td>
+
+
 						<td>
 							<input class="form-control form-control-sm" id="m_paysheet" name="m_paysheet" type="file"
 								accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf">
-						</td>
 						<?php
 						if (!empty($existing['m_paysheet'])) {
 							echo "<small class='form-text text-muted'>Already uploaded: <a class='text-link' href='mail/tmp_files/{$existing['m_paysheet']}' target='_blank'>View Pay-sheet</a></small>";
 						}
 						?>
+						</td>
 					</tr>
 					<!-- calculation -->
 					<script>
@@ -334,7 +337,9 @@ include 'header.php';
 						<td><input type='text' class='form-control' name='f_otherincome' id='f_otherincome'
 								pattern="^[0-9]*$" value="<?php echo $existing['f_otherincome'] ?? ''; ?>"></td>
 						<div class="invalid-feedback">Please fill out this field!</div>
-						<td><input type='text' class='form-control' name='f_totincome' id='f_totincome' readonly></td>
+						<!-- <td><input type='text' class='form-control' name='f_totincome' id='f_totincome' readonly></td> -->
+						<td><input type='text' class='form-control' name='f_totincome' id='f_totincome' readonly value="<?php echo $existing['f_totincome'] ?? ''; ?>"></td>
+
 						<td>
 							<input class="form-control form-control-sm" id="f_paysheet" name="f_paysheet" type="file"
 								accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf">
@@ -389,7 +394,11 @@ include 'header.php';
 								value="<?php echo $existing['g_salary'] ?? ''; ?>"></td>
 						<td><input type='text' class='form-control' name='g_otherincome' id='g_otherincome'
 								pattern="^[0-9]*$" value="<?php echo $existing['g_otherincome'] ?? ''; ?>"></td>
-						<td><input type='text' class='form-control' name='g_totincome' id='g_totincome' readonly></td>
+						<!-- <td><input type='text' class='form-control' name='g_totincome' id='g_totincome' readonly></td> -->
+						<td><input type='text' class='form-control' name='g_totincome' id='g_totincome' readonly value="<?php echo $existing['g_totincome'] ?? ''; ?>"></td>
+
+
+
 						<td>
 							<input class="form-control form-control-sm" id="g_paysheet" name="g_paysheet" type="file"
 								accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf">
@@ -753,19 +762,23 @@ if (isset($_POST['register'])) {
 	$m_jobcat = isset($_POST['m_jobcat']) ? $_POST['m_jobcat'] : '';
 	$m_salary = !empty($_POST['m_salary']) ? $_POST['m_salary'] : 0;
 	$m_otherincome = !empty($_POST['m_otherincome']) ? $_POST['m_otherincome'] : 0;
-	$m_totincome = !empty($_POST['m_totincome']) ? $_POST['m_totincome'] : 0;
+	// $m_totincome = !empty($_POST['m_totincome']) ? $_POST['m_totincome'] : 0;
+	$m_totincome = ( !empty($_POST['m_salary']) ? (int)$_POST['m_salary'] : 0 ) + ( !empty($_POST['m_otherincome']) ? (int)$_POST['m_otherincome'] : 0 );
 
 	$f_job = isset($_POST['f_job']) ? $_POST['f_job'] : '';
 	$f_jobcat = isset($_POST['f_jobcat']) ? $_POST['f_jobcat'] : '';
 	$f_salary = !empty($_POST['f_salary']) ? $_POST['f_salary'] : 0;
 	$f_otherincome = !empty($_POST['f_otherincome']) ? $_POST['f_otherincome'] : 0;
-	$f_totincome = !empty($_POST['f_totincome']) ? $_POST['f_totincome'] : 0;
+	// $f_totincome = !empty($_POST['f_totincome']) ? $_POST['f_totincome'] : 0;
+	$f_totincome = ( !empty($_POST['f_salary']) ? (int)$_POST['f_salary'] : 0 ) + ( !empty($_POST['f_otherincome']) ? (int)$_POST['f_otherincome'] : 0 );
 
 	$g_job = isset($_POST['g_job']) ? $_POST['g_job'] : '';
 	$g_jobcat = isset($_POST['g_jobcat']) ? $_POST['g_jobcat'] : '';
 	$g_salary = !empty($_POST['g_salary']) ? $_POST['g_salary'] : 0;
 	$g_otherincome = !empty($_POST['g_otherincome']) ? $_POST['g_otherincome'] : 0;
-	$g_totincome = !empty($_POST['g_totincome']) ? $_POST['g_totincome'] : 0;
+	// $g_totincome = !empty($_POST['g_totincome']) ? $_POST['g_totincome'] : 0;
+	$g_totincome = ( !empty($_POST['g_salary']) ? (int)$_POST['g_salary'] : 0 ) + ( !empty($_POST['g_otherincome']) ? (int)$_POST['g_otherincome'] : 0 );
+
 
 	// Handle file uploads
 
@@ -895,19 +908,24 @@ if (isset($_POST['update_register'])) {
 	$m_jobcat = isset($_POST['m_jobcat']) ? $_POST['m_jobcat'] : '';
 	$m_salary = !empty($_POST['m_salary']) ? $_POST['m_salary'] : 0;
 	$m_otherincome = !empty($_POST['m_otherincome']) ? $_POST['m_otherincome'] : 0;
-	$m_totincome = !empty($_POST['m_totincome']) ? $_POST['m_totincome'] : 0;
+	// $m_totincome = !empty($_POST['m_totincome']) ? $_POST['m_totincome'] : 0;
+	$m_totincome = ( !empty($_POST['m_salary']) ? (int)$_POST['m_salary'] : 0 ) + ( !empty($_POST['m_otherincome']) ? (int)$_POST['m_otherincome'] : 0 );
+
 
 	$f_job = isset($_POST['f_job']) ? $_POST['f_job'] : '';
 	$f_jobcat = isset($_POST['f_jobcat']) ? $_POST['f_jobcat'] : '';
 	$f_salary = !empty($_POST['f_salary']) ? $_POST['f_salary'] : 0;
 	$f_otherincome = !empty($_POST['f_otherincome']) ? $_POST['f_otherincome'] : 0;
-	$f_totincome = !empty($_POST['f_totincome']) ? $_POST['f_totincome'] : 0;
+	// $f_totincome = !empty($_POST['f_totincome']) ? $_POST['f_totincome'] : 0;
+	$f_totincome = ( !empty($_POST['f_salary']) ? (int)$_POST['f_salary'] : 0 ) + ( !empty($_POST['f_otherincome']) ? (int)$_POST['f_otherincome'] : 0 );
 
 	$g_job = isset($_POST['g_job']) ? $_POST['g_job'] : '';
 	$g_jobcat = isset($_POST['g_jobcat']) ? $_POST['g_jobcat'] : '';
 	$g_salary = !empty($_POST['g_salary']) ? $_POST['g_salary'] : 0;
 	$g_otherincome = !empty($_POST['g_otherincome']) ? $_POST['g_otherincome'] : 0;
-	$g_totincome = !empty($_POST['g_totincome']) ? $_POST['g_totincome'] : 0;
+	// $g_totincome = !empty($_POST['g_totincome']) ? $_POST['g_totincome'] : 0;
+	$g_totincome = ( !empty($_POST['g_salary']) ? (int)$_POST['g_salary'] : 0 ) + ( !empty($_POST['g_otherincome']) ? (int)$_POST['g_otherincome'] : 0 );
+
 
 	$medical = !empty($_POST['medical']) ? 1 : 0;
 	$med_cat = isset($_POST['med']) ? $_POST['med'] : '';

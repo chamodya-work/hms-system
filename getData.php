@@ -28,7 +28,7 @@ function stuData($netID, $pwd){
     $netIDSubstring = strtolower($netIDSubstring);
     
     // Check the extracted substring (case-insensitive)
-    curl_setopt($ch, CURLOPT_URL, 'http://dt.medicine.kln.ac.lk/exp_ser/hostel.php');
+    curl_setopt($ch, CURLOPT_URL, 'http:/172.18.2.224/exp_ser/hostel.php');
 
     //Need to Comment out  
 

@@ -5,8 +5,8 @@ session_start();
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 	header("location: account/login.php");
 	exit;
-}
-?>
+} 
+?> 
 <!doctype html>
 <html lang="en">
 <!-- header-->
@@ -24,7 +24,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 				<select class="form-control" id="acayr" name="acayr" onchange="submit()">
 					<option value="">--Select Academic Year--</option>
 					<?php
-					$acayr = "SELECT acayr,academic_year FROM hostel_reg hr INNER JOIN academic_year ay ON hr.acayr=ay.id WHERE acayr!='0' GROUP BY acayr ORDER BY acayr DESC";
+					$acayr = "SELECT acayr,academic_year FROM hostel_reg hr INNER JOIN academic_year ay ON hr.acayr=ay.academic_year WHERE acayr!='0' GROUP BY acayr ORDER BY acayr DESC";
 					$acayr_sql = mysqli_query($conn, $acayr);
 					while ($acayr_raw = mysqli_fetch_assoc($acayr_sql)) {
 						$aacayr = $acayr_raw['acayr'];
@@ -46,7 +46,8 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 					<option value="">--Select Course--</option>
 					<?php
 					if (isset($_POST['acayr']) AND ($_POST['acayr']) != null) {
-						$course = "SELECT course FROM hostel_reg WHERE acayr = (SELECT id FROM academic_year WHERE academic_year = '" . $_POST['acayr'] . "') GROUP BY course ORDER BY course";
+						$course = "SELECT course FROM hostel_reg WHERE acayr = '".$_POST['acayr']."' GROUP BY course ORDER BY course";
+						error_log($course);
 						$course_sql = mysqli_query($conn, $course);
 						while ($course_raw = mysqli_fetch_assoc($course_sql)) {
 							$acourse = $course_raw['course'];
@@ -68,7 +69,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 					<option value="">--Select Batch--</option>
 					<?php
 					if (isset($_POST['course']) AND ($_POST['course']) != null) {
-						$batch = "SELECT batch FROM hostel_reg WHERE acayr = (SELECT id FROM academic_year WHERE academic_year = '" . $_POST['acayr'] . "') AND course = '" . $_POST['course'] . "' GROUP BY batch ORDER BY batch";
+						$batch = "SELECT batch FROM hostel_reg WHERE acayr = '" . $_POST['acayr'] . "' AND course = '" . $_POST['course'] . "' GROUP BY batch ORDER BY batch";
 						$batch_sql = mysqli_query($conn, $batch);
 						while ($batch_raw = mysqli_fetch_assoc($batch_sql)) {
 							$abatch = $batch_raw['batch'];
@@ -133,7 +134,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 		if (($_POST['acayr']) != null AND ($_POST['course']) != null AND ($_POST['batch']) != null AND ($_POST['gender']) != null AND isset($_POST['payment']) AND ($_POST['payment']) != null) {
 
 
-			$hostel = "SELECT stureg_id, studentno, admit, payslip_tmp,payment FROM `registration`  WHERE applying_acayr = '" . $_POST['acayr'] . "' AND batch = '" . $_POST['batch'] . "' AND course = '" . $_POST['course'] . "' AND gender = '" . $_POST['gender'] . "' AND eligibility = 'selected'";
+			$hostel = "SELECT stureg_id, studentno, admit, payslip_tmp,payment FROM `registration`  WHERE applying_acayr = '" . $_POST['acayr'] . "' AND batch = '" . $_POST['batch'] . "' AND course = '" . $_POST['course'] . "' AND gender = '" . $_POST['gender'] . "' AND eligibility = '1'";
 
 			if ($_POST['payment'] == "1") {
 				$hostel .= " AND payment = '1'";
@@ -144,7 +145,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 
 
 			$hostel_sql = mysqli_query($conn, $hostel);
-			//echo $hostel;
+			// echo $hostel;
 			$rows = mysqli_num_rows($hostel_sql);
 			if ($rows > 0) {
 				?>

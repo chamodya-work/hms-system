@@ -1,14 +1,14 @@
 <?php
 $servername = "127.0.0.1";
 // for server
-// $username = "hostel_user";
-// $password = "hostel_user";
-// $db = "hostel_db";
+//  $username = "hostel_user";
+//  $password = "hostel_user";
+//  $db = "hostel_db";
 
 // for local
 $username = "root";
 $password = "";
-$db = "hms";
+$db = "hostel_db2";
 
 // Create connection
 $conn = new mysqli($servername, $username, $password, $db);
