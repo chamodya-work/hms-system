@@ -24,7 +24,7 @@ sql/
 *.zip
 
 # Dependency folders
-vendor/
+# vendor/
 vendor.old/
 node_modules/
 
@@ -45,7 +45,7 @@ test.curl
 tp
 
 # Uploaded or generated private files
-mail/tmp_files/
+# mail/tmp_files/
 tmp_files/
 uploads/
 upload/

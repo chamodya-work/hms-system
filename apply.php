@@ -12,7 +12,7 @@ if ($_SESSION['allowed_apply'] != true) {
 
 }
 
-// require 'mail/gmail_api.php';
+require 'mail/gmail_api.php';
 
 ?>
 
@@ -850,7 +850,10 @@ if (isset($_POST['register'])) {
 	insert_student_info($conn);
 
 	if ($run_register) {
-		// api_sendMail($email, "piumem@kln.ac.lk", "Hostel Alerts", "Your hostel application has been successfully submitted!");
+
+		//uncommented for the testing 
+		api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "Your hostel application has been successfully submitted!");
+		
 		echo "<script>alert('Your Hostel Application has been successfully submitted!')</script>";
 		echo "<meta http-equiv='refresh' content='0'>";
 		echo "<script> window.location =  'index.php' ; </script>";
