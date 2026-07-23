@@ -24,7 +24,8 @@ sql/
 *.zip
 
 # Dependency folders
-# vendor/
+vendor/
+composer.lock
 vendor.old/
 node_modules/
 

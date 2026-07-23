@@ -4,6 +4,12 @@
         "symfony/google-mailer": "^5.4",
         "hybridauth/hybridauth": "^3.11",
         "tecnickcom/tcpdf": "^6.11",
-        "mpdf/mpdf": "^8.3"
+        "mpdf/mpdf": "^8.3",
+        "google/apiclient": "^2.0"
+    },
+    "config": {
+        "audit": {
+            "block-insecure": false
+        }
     }
 }

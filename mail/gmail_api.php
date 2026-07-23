@@ -1,6 +1,7 @@
 <?php
 
-require 'vendor/autoload.php'; // Load the Composer libraries
+// require 'vendor/autoload.php'; // Load the Composer libraries
+require __DIR__ . '/../vendor/autoload.php';
 $client = new Google_Client();
 $client->setAccessType('offline');
 $client->setApplicationName('Hostel Management System -FoM');
