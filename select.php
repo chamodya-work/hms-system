@@ -14,6 +14,9 @@ if (!isset($_POST['filterOptions'])) $_POST['filterOptions'] = '';
 $rows = 0;
 $save_sql = '';
 
+// DEBUG MODE: set to true to show debug output instead of refreshing
+$debug = false; // change to false when everything works
+
 // Check if the user is logged in, if not then redirect him to login page
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     header("location: account/login.php");
@@ -102,8 +105,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
         </div>
     </form>
 
-    <!-- ===== SORT RADIO BUTTONS (still part of filter, but inside same filter form?) 
-          We'll put them inside filter form as well, and submit on click -->
+    <!-- ===== SORT RADIO BUTTONS ===== -->
     <?php if (!empty($_POST['acayr']) && !empty($_POST['course']) && !empty($_POST['batch']) && !empty($_POST['gender'])): ?>
         <form id="filterForm2" action="" method="post">
             <input type="hidden" name="acayr" value="<?php echo $_POST['acayr']; ?>">
@@ -133,9 +135,8 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     <?php endif; ?>
 
     <?php
-    // Build the query if all filters are set
+    // ===== BUILD QUERY =====
     if (!empty($_POST['acayr']) && !empty($_POST['course']) && !empty($_POST['batch']) && !empty($_POST['gender'])) {
-        // Convert short course names to full names if needed
         $course_display = $_POST['course'];
         if ($_POST['course'] == "SHS") {
             $course_display = "Bachelor of Science Honours in Speech and Language Therapy";
@@ -152,7 +153,6 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
                     AND (r.admit IS NULL OR r.admit = '0') 
                     AND r.stureg_id = ( SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno ) ";
 
-        // Sorting
         if (!empty($_POST['filterOptions'])) {
             switch ($_POST['filterOptions']) {
                 case 'income':      $hostel .= " ORDER BY totincome"; break;
@@ -173,29 +173,77 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     <!-- ===== ACTION FORM (Table + Save / Publish) ===== -->
     <?php if (isset($rows) && $rows > 0): ?>
         <form id="actionForm" action="" method="post">
-    <!-- Hidden fields to preserve filter values -->
-    <input type="hidden" name="acayr" value="<?php echo $_POST['acayr']; ?>">
-    <input type="hidden" name="course" value="<?php echo $_POST['course']; ?>">
-    <input type="hidden" name="batch" value="<?php echo $_POST['batch']; ?>">
-    <input type="hidden" name="gender" value="<?php echo $_POST['gender']; ?>">
-    <input type="hidden" name="filterOptions" value="<?php echo $_POST['filterOptions']; ?>">
-    
-    <!-- Add this hidden field to confirm publish -->
-    <input type="hidden" name="publish_confirm" value="1">
+            <!-- Hidden fields to preserve filter values -->
+            <input type="hidden" name="acayr" value="<?php echo $_POST['acayr']; ?>">
+            <input type="hidden" name="course" value="<?php echo $_POST['course']; ?>">
+            <input type="hidden" name="batch" value="<?php echo $_POST['batch']; ?>">
+            <input type="hidden" name="gender" value="<?php echo $_POST['gender']; ?>">
+            <input type="hidden" name="filterOptions" value="<?php echo $_POST['filterOptions']; ?>">
+            <input type="hidden" name="publish_confirm" value="1">
 
-    <!-- table rows... -->
+            <div class="form-group">
+                <table class="table table-hover" style="width:75%;margin:auto;">
+                    <thead>
+                        <tr>
+                            <th>Student No</th>
+                            <th>Distance</th>
+                            <th>Income (Rs.)</th>
+                            <th>Medical</th>
+                            <th>Siblings</th>
+                            <th>View Files</th>
+                            <th>Eligibility</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $i = 0;
+                        while ($hostel_raw = mysqli_fetch_assoc($hostel_sql)) {
+                            $stureg_id = $hostel_raw['stureg_id'];
+                            $studentno = $hostel_raw['studentno'];
+                            $distance = $hostel_raw['distance'];
+                            $medical = ($hostel_raw['medical'] == 1) ? "Yes, " . $hostel_raw['med_cat'] : "-";
+                            $siblings = ($hostel_raw['siblings'] == 1) ? "Yes" : "-";
+                            $totincome = $hostel_raw['totincome'];
+                            $eligibility = $hostel_raw['eligibility'];
+                            $m_pay = $hostel_raw['m_paysheet_tmp'];
+                            $f_pay = $hostel_raw['f_paysheet_tmp'];
+                            $income_cert = $hostel_raw['income_certificate_tmp'];
+                            $i++;
+                        ?>
+                            <tr>
+                                <td>
+                                    <!-- CHANGED: use studentno instead of stureg_id -->
+                                    <input type="text" name="studentno<?php echo $i; ?>" value="<?php echo $studentno; ?>" hidden>
+                                    <?php echo $studentno; ?>
+                                </td>
+                                <td><?php echo $distance; ?> km</td>
+                                <td style="text-align:right;"><?php echo number_format($totincome, 2, '.', ','); ?></td>
+                                <td><?php echo $medical; ?></td>
+                                <td><?php echo $siblings; ?></td>
+                                <td>
+                                    <?php if ($m_pay) echo "<a target='_blank' href='https://hosmed.kln.ac.lk/mail/tmp_files/$m_pay'>Mother's paysheet</a><br>"; ?>
+                                    <?php if ($f_pay) echo "<a target='_blank' href='https://hosmed.kln.ac.lk/mail/tmp_files/$f_pay'>Father's paysheet</a><br>"; ?>
+                                    <?php if ($income_cert) echo "<a target='_blank' href='https://hosmed.kln.ac.lk/mail/tmp_files/$income_cert'>Grama Niladari Certificate</a>"; ?>
+                                </td>
+                                <td>
+                                    <input type="checkbox" value="1" name="eligibility<?php echo $i; ?>" <?php echo ($eligibility == 1) ? 'checked' : ''; ?>>
+                                </td>
+                            </tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
+            </div>
 
-    <div class="form-group" style="text-align:center;">
-        <button type="submit" class="btn" style="background:#2F4F4F;color:white;padding:6px;" name="save" value="1">
-            Save <i class="fa fa-floppy-o" style="color:white;padding:6px;"></i>
-        </button>
-        <button type="submit" class="btn" style="background:#2F4F4F;color:white;padding:6px;" name="publish" value="1">
-            Publish List <i class="fa fa-cloud-upload" style="color:white;padding:6px;"></i>
-        </button>
-    </div>
-</form>
+            <div class="form-group" style="text-align:center;">
+                <button type="submit" class="btn" style="background:#2F4F4F;color:white;padding:6px;" name="save" value="1">
+                    Save <i class="fa fa-floppy-o" style="color:white;padding:6px;"></i>
+                </button>
+                <button type="submit" class="btn" style="background:#2F4F4F;color:white;padding:6px;" name="publish" value="1">
+                    Publish List <i class="fa fa-cloud-upload" style="color:white;padding:6px;"></i>
+                </button>
+            </div>
+        </form>
     <?php else: ?>
-        <!-- Optional: show a message when no records match the filters -->
         <div class="alert alert-info">No records found for the selected filters.</div>
     <?php endif; ?>
 
@@ -205,22 +253,49 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 <?php include 'footer.php'; ?>
 
 <?php
-// ===== SAVE LOGIC =====
+// =============================================
+// ===== SAVE LOGIC (UPDATED – uses studentno) =====
+// =============================================
 if (isset($_POST['save']) && $_POST['save'] == '1') {
+    if ($debug) {
+        echo "<h3>Save button clicked!</h3>";
+        echo "<pre>POST DATA: " . print_r($_POST, true) . "</pre>";
+        echo "<pre>Rows variable: " . (isset($rows) ? $rows : 'NOT SET') . "</pre>";
+    }
+
     if (isset($rows) && $rows > 0) {
+        $acayr = $_POST['acayr']; // from hidden field in actionForm
         $save_sql = '';
+        $update_count = 0;
+
         for ($i = 1; $i <= $rows; $i++) {
             $el = "eligibility" . $i;
             $eligibility = isset($_POST[$el]) && $_POST[$el] == 1 ? '1' : '0';
-            $si = "si" . $i;
-            $stureg_id = isset($_POST[$si]) ? $_POST[$si] : 0;
-            $save_sql .= "UPDATE registration SET eligibility='$eligibility' WHERE stureg_id='$stureg_id';";
+            $studentno_key = "studentno" . $i;
+            $studentno = isset($_POST[$studentno_key]) ? $_POST[$studentno_key] : '';
+
+            if (!empty($studentno)) {
+                $save_sql .= "UPDATE registration SET eligibility='$eligibility' WHERE studentno='$studentno' AND applying_acayr='$acayr';";
+                $update_count++;
+                if ($debug) echo "<p>i=$i, studentno=$studentno, eligibility=$eligibility</p>";
+            } else {
+                if ($debug) echo "<p>i=$i: studentno not set</p>";
+            }
         }
+
         if (!empty($save_sql)) {
+            if ($debug) echo "<pre>SAVE SQL: " . htmlspecialchars($save_sql) . "</pre>";
+
             $run_save = mysqli_multi_query($conn, $save_sql);
-            if ($run_save) {
-                echo "<script>alert('Your Hostel Student List has been saved successfully!')</script>";
-                echo "<meta http-equiv='refresh' content='0'>";
+            if (!$run_save) {
+                echo "MySQL Error: " . mysqli_error($conn);
+            } else {
+                if ($debug) {
+                    echo "Query executed successfully! Updated $update_count record(s).";
+                } else {
+                    echo "<script>alert('Your Hostel Student List has been saved successfully!')</script>";
+                    echo "<meta http-equiv='refresh' content='0'>";
+                }
             }
         } else {
             echo "<script>alert('No records to save!')</script>";
@@ -228,10 +303,13 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
     } else {
         echo "<script>alert('No records to save!')</script>";
     }
+
+    if ($debug) exit; // stop execution so debug output is visible
 }
 
+// =============================================
 // ===== PUBLISH LOGIC =====
-// if (isset($_POST['publish'])) {
+// =============================================
 if (isset($_POST['publish_confirm']) && $_POST['publish_confirm'] == '1') {
     require 'mail/gmail_api.php';
 ?>
