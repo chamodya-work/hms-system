@@ -308,40 +308,87 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
 }
 
 // =============================================
-// ===== PUBLISH LOGIC =====
+// ===== PUBLISH LOGIC (FIXED) =====
 // =============================================
-if (isset($_POST['publish_confirm']) && $_POST['publish_confirm'] == '1') {
+// =============================================
+// ===== PUBLISH LOGIC (PRODUCTION VERSION) =====
+// =============================================
+if (isset($_POST['publish']) && $_POST['publish'] == '1') {
     require 'mail/gmail_api.php';
-?>
-    <script>
-        if (confirm('Have you finalized and saved the list before proceeding?')) {
-            <?php
-            // Build email lists
-            $email1 = '';
-            $hostel1 = "SELECT `email` FROM `registration` WHERE `eligibility` = '1' AND `applying_acayr` = '" . $_POST['acayr'] . "' AND `course` = '" . $_POST['course'] . "' AND `batch` = '" . $_POST['batch'] . "' AND `gender` = '" . $_POST['gender'] . "'";
-            $hostel_sql1 = mysqli_query($conn, $hostel1);
-            if (mysqli_num_rows($hostel_sql1) > 0) {
-                while ($row = mysqli_fetch_assoc($hostel_sql1)) {
-                    $email1 .= $row['email'] . ",";
-                }
-                api_sendMail($email1, "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
-            }
 
-            $email2 = '';
-            $hostel2 = "SELECT `email` FROM `registration` WHERE `eligibility` = '0' AND `applying_acayr` = '" . $_POST['acayr'] . "' AND `course` = '" . $_POST['course'] . "' AND `batch` = '" . $_POST['batch'] . "' AND `gender` = '" . $_POST['gender'] . "'";
-            $hostel_sql2 = mysqli_query($conn, $hostel2);
-            if (mysqli_num_rows($hostel_sql2) > 0) {
-                while ($row = mysqli_fetch_assoc($hostel_sql2)) {
-                    $email2 .= $row['email'] . ",";
+    // Step 1: If not confirmed yet, show confirm box and resubmit with confirmed=1
+    if (!isset($_POST['confirmed']) || $_POST['confirmed'] != '1') {
+        ?>
+        <script>
+            if (confirm('Have you finalized and saved the list before proceeding?')) {
+                // Resubmit the form with the same data + confirmed=1
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '';
+                <?php
+                // Add all current POST data as hidden fields
+                foreach ($_POST as $key => $value) {
+                    echo "var input = document.createElement('input'); input.type = 'hidden'; input.name = '$key'; input.value = '".addslashes($value)."'; form.appendChild(input);\n";
                 }
-                api_sendMail($email2, "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
+                ?>
+                var input = document.createElement('input'); input.type = 'hidden'; input.name = 'confirmed'; input.value = '1'; form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            } else {
+                alert('Action cancelled! No emails were sent.');
             }
-            ?>
-        } else {
-            alert('Action cancelled!');
+        </script>
+        <?php
+        exit; // stop execution – emails are NOT sent yet
+    }
+
+    // Step 2: Confirmed – now fetch email lists and send
+
+    // Build eligible email list
+    $email1 = '';
+    $hostel1 = "SELECT `email` FROM `registration` WHERE `eligibility` = '1' AND `applying_acayr` = '" . $_POST['acayr'] . "' AND `course` = '" . $_POST['course'] . "' AND `batch` = '" . $_POST['batch'] . "' AND `gender` = '" . $_POST['gender'] . "'";
+    $hostel_sql1 = mysqli_query($conn, $hostel1);
+    if (mysqli_num_rows($hostel_sql1) > 0) {
+        while ($row = mysqli_fetch_assoc($hostel_sql1)) {
+            $email1 .= $row['email'] . ",";
         }
+        $email1 = rtrim($email1, ','); // remove trailing comma
+    }
+
+    // Build not eligible email list
+    $email2 = '';
+    $hostel2 = "SELECT `email` FROM `registration` WHERE `eligibility` = '0' AND `applying_acayr` = '" . $_POST['acayr'] . "' AND `course` = '" . $_POST['course'] . "' AND `batch` = '" . $_POST['batch'] . "' AND `gender` = '" . $_POST['gender'] . "'";
+    $hostel_sql2 = mysqli_query($conn, $hostel2);
+    if (mysqli_num_rows($hostel_sql2) > 0) {
+        while ($row = mysqli_fetch_assoc($hostel_sql2)) {
+            $email2 .= $row['email'] . ",";
+        }
+        $email2 = rtrim($email2, ',');
+    }
+
+    // Send emails
+    $sent_count = 0;
+    if (!empty($email1)) {
+        // api_sendMail($email1, "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
+        //testing with hardcoded email for now
+        api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
+        
+        $sent_count++;
+    }
+    if (!empty($email2)) {
+        // api_sendMail($email2, "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
+        //testing with hardcoded email for now
+        api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
+        $sent_count++;
+    }
+
+    ?>
+    <script>
+        alert('Emails have been sent successfully (<?php echo $sent_count; ?> batch(es))!');
+        window.location.href = window.location.href;
     </script>
-<?php
+    <?php
+    exit;
 }
 ?>
 </body>
