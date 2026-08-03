@@ -294,8 +294,9 @@ if ($_SESSION["cat"] == "1") {
 					if (mysqli_num_rows($ifreg_sql) == 0) {
 						?>
 						<form method='post'>
-							<button type='submit' name='hosreg' class='btn btn-dark btn-lg w-100'
-								style='color:white; margin-bottom: 8px;'>Record Current Hostel Details</button>
+							//Record Current Hostel Details button is hidden as requested
+							<!-- <button type='submit' name='hosreg' class='btn btn-dark btn-lg w-100'
+								style='color:white; margin-bottom: 8px;'>Record Current Hostel Details</button> -->
 							<a href="repair.php" class="btn btn-dark btn-lg w-100" style="color:white;margin-bottom: 8px;">Request
 								Maintenance/Repair</a>
 							<a href="repair-student-view.php" class="btn btn-dark btn-lg w-100" style="color:white;">View My
