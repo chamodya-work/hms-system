@@ -309,35 +309,26 @@ if ($_SESSION["cat"] == "1") {
 						echo "<p class='text-muted text-center'>Last Applied: " . htmlspecialchars($lu) . "</p>";
 					}
 				}
-				//for subwarden
+				//for subwarden (cat=2) and hostel secretary (cat=3)
 				elseif ($_SESSION["cat"] == '3' || $_SESSION["cat"] == '2') {
 					?>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="hostellist.php">Hostel Information</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="addacayr.php">Add
-						New Academic Year</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="hosreglist.php">Hostel Applications Dates</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="viewstudent.php">View Student Information</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="hostellist.php">Hostel Information</a>
 					<?php
+					// Extra options only for hostel secretary
 					if ($_SESSION["cat"] == '3') {
 						?>
-						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="select.php">Review
-							Hostel Applications</a>
-						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="user.php">Manage
-							User Accounts</a>
-						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="warden.php">Manage
-							Wardens</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="addacayr.php">Add New Academic Year</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="hosreglist.php">Hostel Applications Dates</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewstudent.php">View Student Information</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="select.php">Review Hostel Applications</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="user.php">Manage User Accounts</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="warden.php">Manage Wardens</a>
 						<?php
 					}
 					?>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewselect.php">View
-						Selected List</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="viewcurrent.php">View Current Student List</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="select-room.php">Update Rooms</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewselect.php">View Selected List</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewcurrent.php">View Current Student List</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="select-room.php">Update Rooms</a>
 					<a class="btn btn-dark btn-lg w-100" style="color:white;" href="repair-view.php">Maintenance/Repairs</a>
 					<?php
 				}
@@ -513,7 +504,9 @@ if ($_SESSION["cat"] == '1' || $_SESSION["cat"] == '3') {
 			?>
 
 			<!-- Profile 2 -->
-			<div class="col-md-4">
+			 <!-- THIS IS HARDCODED PROFILE SO THIS IS COMMENTED -->
+			  
+			<!-- <div class="col-md-4">
 				<div class="profile-card">
 					<img src="images/Mr Danajaya.jpg" alt="Mr. D.D.D. Withanage" class="profile-img">
 					<div class="profile-name">Mr. D.D.D. Withanage</div>
@@ -533,7 +526,7 @@ if ($_SESSION["cat"] == '1' || $_SESSION["cat"] == '3') {
 						</div>
 					</div>
 				</div>
-			</div>
+			</div> -->
 
 
 		</div>
