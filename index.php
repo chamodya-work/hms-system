@@ -195,14 +195,29 @@ if ($_SESSION["cat"] == "1") {
 			</h1>
 			<?php
 			// List all the hostels assigned to the subwarden
+			// if ($_SESSION["cat"] == '2' && isset($_SESSION['warden_id'])) {
+			// 	$warden_id = '7';
+			// 	$sql = "SELECT wh.hos_id FROM warden_hostel wh 
+			// 	WHERE wh.warden_id = $warden_id";
+			// 	$result = $conn->query($sql);
+			// 	// Get into an array
+			// 	$assigned_hostels = [];
+			// 	if ($result->num_rows > 0) {
+			// 		while ($row = $result->fetch_assoc()) {
+			// 			$assigned_hostels[] = $row['hos_id'];
+			// 		}
+			// 	}
+			// }
+
+			// Initialize assigned hostels array
+			$assigned_hostels = [];
+
+			// For subwarden (cat=2) – get assigned hostels from session if available
 			if ($_SESSION["cat"] == '2' && isset($_SESSION['warden_id'])) {
-				$warden_id = '7';
-				$sql = "SELECT wh.hos_id FROM warden_hostel wh 
-				WHERE wh.warden_id = $warden_id";
+				$warden_id = $_SESSION['warden_id']; // Use session value, not hardcoded
+				$sql = "SELECT wh.hos_id FROM warden_hostel wh WHERE wh.warden_id = $warden_id";
 				$result = $conn->query($sql);
-				// Get into an array
-				$assigned_hostels = [];
-				if ($result->num_rows > 0) {
+				if ($result && $result->num_rows > 0) {
 					while ($row = $result->fetch_assoc()) {
 						$assigned_hostels[] = $row['hos_id'];
 					}
@@ -349,31 +364,53 @@ if ($_SESSION["cat"] == "1") {
 if ($_SESSION["cat"] == '1') {
 	$repair = "SELECT rep_id, req_date, cat, description, status FROM repairs WHERE stu_no = '$stnm'; ";
 }
+
+// if ($_SESSION["cat"] == '2') {
+// 	$assigned_hostels_str = implode(',', $assigned_hostels);
+
+// 	if (!empty($assigned_hostels)) {
+// 		// Escape each value for safety and wrap in quotes
+// 		$escaped_hostels = array_map(function ($id) use ($conn) {
+// 			return "'" . mysqli_real_escape_string($conn, $id) . "'";
+// 		}, $assigned_hostels);
+
+// 		// Join them into a comma-separated string
+// 		$assigned_hostels_str = implode(',', $escaped_hostels);
+
+// 		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
+// 							FROM repairs r
+// 							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+// 							WHERE r.status = 'pending'
+// 							AND hb.hos_id IN ($assigned_hostels_str)";
+// 	} else {
+// 		// No hostels assigned → return empty result
+// 		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
+// 							FROM repairs r
+// 							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+// 							WHERE 0"; // always false
+// 	}
+// }
+
+// For subwarden (cat=2) – show pending repairs for assigned hostels
 if ($_SESSION["cat"] == '2') {
-	$assigned_hostels_str = implode(',', $assigned_hostels);
-
-	if (!empty($assigned_hostels)) {
-		// Escape each value for safety and wrap in quotes
-		$escaped_hostels = array_map(function ($id) use ($conn) {
-			return "'" . mysqli_real_escape_string($conn, $id) . "'";
-		}, $assigned_hostels);
-
-		// Join them into a comma-separated string
-		$assigned_hostels_str = implode(',', $escaped_hostels);
-
-		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
-							FROM repairs r
-							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
-							WHERE r.status = 'pending'
-							AND hb.hos_id IN ($assigned_hostels_str)";
-	} else {
-		// No hostels assigned → return empty result
-		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
-							FROM repairs r
-							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
-							WHERE 0"; // always false
-	}
+    if (!empty($assigned_hostels)) {
+        // Escape and quote each hostel ID
+        $escaped_hostels = array_map(function ($id) use ($conn) {
+            return "'" . mysqli_real_escape_string($conn, $id) . "'";
+        }, $assigned_hostels);
+        $assigned_hostels_str = implode(',', $escaped_hostels);
+        $repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
+                   FROM repairs r
+                   INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+                   WHERE r.status = 'pending'
+                   AND hb.hos_id IN ($assigned_hostels_str)";
+    } else {
+        // No hostels assigned – show no repairs
+        $repair = "SELECT rep_id, req_date, cat, description, status, bed_id FROM repairs WHERE 0";
+    }
 }
+
+
 if ($_SESSION["cat"] == '3') {
 	$repair = "SELECT rep_id, req_date, cat, description, status FROM repairs WHERE status = 'completed'; ";
 }
