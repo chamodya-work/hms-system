@@ -1,6 +1,7 @@
 <?php
 // Initialize the session
 session_start();
+include("connection/connect.php");
 
 // Check if user is logged in
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
@@ -25,8 +26,12 @@ if (isset($_GET['delete_id'])) {
         $row = $result->fetch_assoc();
         $current_bed_id = $row['bed_id'];
         // Remove bed assignment and free the bed
-        $sql2 = "UPDATE `registration` SET `bed_id`='0' WHERE stureg_id = $id;
-                 UPDATE `hostel_bed` SET `availability`='1' WHERE bed_id = $current_bed_id";
+        // $sql2 = "UPDATE `registration` SET `bed_id`='0' WHERE stureg_id = $id;
+        //          UPDATE `hostel_bed` SET `availability`='1' WHERE bed_id = $current_bed_id";
+
+        $sql2 = "UPDATE `registration` SET `bed_id` = NULL, `admit` = '0' WHERE stureg_id = $id;
+                UPDATE `hostel_bed` SET `availability`='1' WHERE bed_id = $current_bed_id";
+
         if ($conn->multi_query($sql2) === TRUE) {
             echo "<script>alert('Bed has been successfully removed!')</script>";
             echo "<script> window.location =  'viewcurrent.php' ; </script>";
