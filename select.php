@@ -25,8 +25,22 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 ?>
 <!doctype html>
 <html lang="en">
-<!-- header-->
+<!-- header (this includes the database connection) -->
 <?php include 'header.php'; ?>
+
+<?php
+// ===== Convert acayr ID to actual year string (now $conn is available) =====
+$acayr_id = isset($_POST['acayr']) ? $_POST['acayr'] : '';
+$year_str = '';
+if (!empty($acayr_id)) {
+    $lookup = "SELECT academic_year FROM academic_year WHERE id = '" . mysqli_real_escape_string($conn, $acayr_id) . "'";
+    $res = mysqli_query($conn, $lookup);
+    if ($row = mysqli_fetch_assoc($res)) {
+        $year_str = $row['academic_year'];
+    }
+}
+?>
+
 <div class="container">
     <h2 class="text-center"><br>Hostel Applications List</h2><br><br>
 
@@ -38,14 +52,21 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
                 <label for="acayr">Academic Year:</label>
                 <select class="form-control" id="acayr" name="acayr" onchange="this.form.submit()">
                     <option value="">--Select Academic Year--</option>
+                    
                     <?php
-                    $acayr = "SELECT acayr FROM hostel_reg WHERE acayr!='0' GROUP BY acayr ORDER BY acayr DESC";
-                    $acayr_sql = mysqli_query($conn, $acayr);
+                    $acayr_query = "SELECT MAX(hr.acayr) AS acayr, ay.academic_year 
+                                    FROM hostel_reg hr
+                                    INNER JOIN academic_year ay ON hr.acayr = ay.id
+                                    WHERE hr.acayr != '0'
+                                    GROUP BY ay.academic_year
+                                    ORDER BY ay.academic_year DESC";
+                    $acayr_sql = mysqli_query($conn, $acayr_query);
                     while ($acayr_raw = mysqli_fetch_assoc($acayr_sql)) {
                         $aacayr = $acayr_raw['acayr'];
+                        $ayear = $acayr_raw['academic_year'];
                     ?>
                         <option value="<?php echo $aacayr; ?>" <?php if ($_POST['acayr'] == $aacayr) echo 'selected'; ?>>
-                            <?php echo $aacayr; ?>
+                            <?php echo $ayear; ?>
                         </option>
                     <?php } ?>
                 </select>
@@ -58,7 +79,8 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
                     <select class="form-control" id="course" name="course" onchange="this.form.submit()">
                         <option value="">--Select Course--</option>
                         <?php
-                        $course = "SELECT DISTINCT course FROM registration WHERE applying_acayr = '" . $_POST['acayr'] . "' ORDER BY course";
+                        // Use $year_str (now defined)
+                        $course = "SELECT DISTINCT course FROM registration WHERE applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' ORDER BY course";
                         $course_sql = mysqli_query($conn, $course);
                         while ($course_raw = mysqli_fetch_assoc($course_sql)) {
                             $acourse = $course_raw['course'];
@@ -78,7 +100,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
                     <select class="form-control" id="batch" name="batch" onchange="this.form.submit()">
                         <option value="">--Select Batch--</option>
                         <?php
-                        $batch = "SELECT DISTINCT batch FROM registration WHERE applying_acayr = '" . $_POST['acayr'] . "' AND course='" . $_POST['course'] . "' ORDER BY batch";
+                        $batch = "SELECT DISTINCT batch FROM registration WHERE applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' AND course='" . mysqli_real_escape_string($conn, $_POST['course']) . "' ORDER BY batch";
                         $batch_sql = mysqli_query($conn, $batch);
                         while ($batch_raw = mysqli_fetch_assoc($batch_sql)) {
                             $abatch = $batch_raw['batch'];
@@ -146,10 +168,10 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 
         $hostel = "SELECT r.stureg_id, r.studentno, r.distance, (r.m_totincome + r.f_totincome + r.g_totincome) AS totincome, r.medical, r.med_cat, r.siblings, r.m_paysheet_tmp, r.f_paysheet_tmp, r.income_certificate_tmp, r.eligibility 
                     FROM registration r 
-                    WHERE r.applying_acayr = '" . $_POST['acayr'] . "' 
-                    AND r.batch = '" . $_POST['batch'] . "' 
-                    AND r.course = '" . $course_display . "' 
-                    AND r.gender = '" . $_POST['gender'] . "' 
+                    WHERE r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' 
+                    AND r.batch = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' 
+                    AND r.course = '" . mysqli_real_escape_string($conn, $course_display) . "' 
+                    AND r.gender = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "' 
                     AND (r.admit IS NULL OR r.admit = '0') 
                     AND r.stureg_id = ( SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno ) ";
 
@@ -212,7 +234,6 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
                         ?>
                             <tr>
                                 <td>
-                                    <!-- CHANGED: use studentno instead of stureg_id -->
                                     <input type="text" name="studentno<?php echo $i; ?>" value="<?php echo $studentno; ?>" hidden>
                                     <?php echo $studentno; ?>
                                 </td>
@@ -254,7 +275,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 
 <?php
 // =============================================
-// ===== SAVE LOGIC (UPDATED – uses studentno) =====
+// ===== SAVE LOGIC (UPDATED – uses studentno and $year_str) =====
 // =============================================
 if (isset($_POST['save']) && $_POST['save'] == '1') {
     if ($debug) {
@@ -264,7 +285,7 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
     }
 
     if (isset($rows) && $rows > 0) {
-        $acayr = $_POST['acayr']; // from hidden field in actionForm
+        $acayr_str = $year_str; 
         $save_sql = '';
         $update_count = 0;
 
@@ -275,7 +296,7 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
             $studentno = isset($_POST[$studentno_key]) ? $_POST[$studentno_key] : '';
 
             if (!empty($studentno)) {
-                $save_sql .= "UPDATE registration SET eligibility='$eligibility' WHERE studentno='$studentno' AND applying_acayr='$acayr';";
+                $save_sql .= "UPDATE registration SET eligibility='$eligibility' WHERE studentno='" . mysqli_real_escape_string($conn, $studentno) . "' AND applying_acayr='" . mysqli_real_escape_string($conn, $acayr_str) . "';";
                 $update_count++;
                 if ($debug) echo "<p>i=$i, studentno=$studentno, eligibility=$eligibility</p>";
             } else {
@@ -304,29 +325,23 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
         echo "<script>alert('No records to save!')</script>";
     }
 
-    if ($debug) exit; // stop execution so debug output is visible
+    if ($debug) exit;
 }
 
 // =============================================
-// ===== PUBLISH LOGIC (FIXED) =====
-// =============================================
-// =============================================
-// ===== PUBLISH LOGIC (PRODUCTION VERSION) =====
+// ===== PUBLISH LOGIC (FIXED – uses $year_str) =====
 // =============================================
 if (isset($_POST['publish']) && $_POST['publish'] == '1') {
     require 'mail/gmail_api.php';
 
-    // Step 1: If not confirmed yet, show confirm box and resubmit with confirmed=1
     if (!isset($_POST['confirmed']) || $_POST['confirmed'] != '1') {
         ?>
         <script>
             if (confirm('Have you finalized and saved the list before proceeding?')) {
-                // Resubmit the form with the same data + confirmed=1
                 var form = document.createElement('form');
                 form.method = 'POST';
                 form.action = '';
                 <?php
-                // Add all current POST data as hidden fields
                 foreach ($_POST as $key => $value) {
                     echo "var input = document.createElement('input'); input.type = 'hidden'; input.name = '$key'; input.value = '".addslashes($value)."'; form.appendChild(input);\n";
                 }
@@ -339,25 +354,21 @@ if (isset($_POST['publish']) && $_POST['publish'] == '1') {
             }
         </script>
         <?php
-        exit; // stop execution – emails are NOT sent yet
+        exit;
     }
 
-    // Step 2: Confirmed – now fetch email lists and send
-
-    // Build eligible email list
     $email1 = '';
-    $hostel1 = "SELECT `email` FROM `registration` WHERE `eligibility` = '1' AND `applying_acayr` = '" . $_POST['acayr'] . "' AND `course` = '" . $_POST['course'] . "' AND `batch` = '" . $_POST['batch'] . "' AND `gender` = '" . $_POST['gender'] . "'";
+    $hostel1 = "SELECT `email` FROM `registration` WHERE `eligibility` = '1' AND `applying_acayr` = '" . mysqli_real_escape_string($conn, $year_str) . "' AND `course` = '" . mysqli_real_escape_string($conn, $_POST['course']) . "' AND `batch` = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' AND `gender` = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'";
     $hostel_sql1 = mysqli_query($conn, $hostel1);
     if (mysqli_num_rows($hostel_sql1) > 0) {
         while ($row = mysqli_fetch_assoc($hostel_sql1)) {
             $email1 .= $row['email'] . ",";
         }
-        $email1 = rtrim($email1, ','); // remove trailing comma
+        $email1 = rtrim($email1, ',');
     }
 
-    // Build not eligible email list
     $email2 = '';
-    $hostel2 = "SELECT `email` FROM `registration` WHERE `eligibility` = '0' AND `applying_acayr` = '" . $_POST['acayr'] . "' AND `course` = '" . $_POST['course'] . "' AND `batch` = '" . $_POST['batch'] . "' AND `gender` = '" . $_POST['gender'] . "'";
+    $hostel2 = "SELECT `email` FROM `registration` WHERE `eligibility` = '0' AND `applying_acayr` = '" . mysqli_real_escape_string($conn, $year_str) . "' AND `course` = '" . mysqli_real_escape_string($conn, $_POST['course']) . "' AND `batch` = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' AND `gender` = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'";
     $hostel_sql2 = mysqli_query($conn, $hostel2);
     if (mysqli_num_rows($hostel_sql2) > 0) {
         while ($row = mysqli_fetch_assoc($hostel_sql2)) {
@@ -366,18 +377,12 @@ if (isset($_POST['publish']) && $_POST['publish'] == '1') {
         $email2 = rtrim($email2, ',');
     }
 
-    // Send emails
     $sent_count = 0;
     if (!empty($email1)) {
-        // api_sendMail($email1, "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
-        //testing with hardcoded email for now
         api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
-        
         $sent_count++;
     }
     if (!empty($email2)) {
-        // api_sendMail($email2, "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
-        //testing with hardcoded email for now
         api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
         $sent_count++;
     }
