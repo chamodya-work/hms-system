@@ -2,35 +2,24 @@
 // Initialize the session
 session_start();
 
-// Initialize POST variables to avoid undefined index warnings
-if (!isset($_POST['acayr'])) $_POST['acayr'] = '';
-if (!isset($_POST['course'])) $_POST['course'] = '';
-if (!isset($_POST['batch'])) $_POST['batch'] = '';
-if (!isset($_POST['gender'])) $_POST['gender'] = '';
-if (!isset($_POST['filterOptions'])) $_POST['filterOptions'] = '';
-// Do NOT initialize 'save' or 'publish' – they should only exist when submitted
-
-// Initialize variables to avoid undefined warnings
-$rows = 0;
-$save_sql = '';
-
-// DEBUG MODE: set to true to show debug output instead of refreshing
-$debug = false; // change to false when everything works
-
-// Check if the user is logged in, if not then redirect him to login page
+// Check login
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     header("location: account/login.php");
     exit;
 }
-?>
-<!doctype html>
-<html lang="en">
-<!-- header (this includes the database connection) -->
-<?php include 'header.php'; ?>
 
-<?php
-// ===== Convert acayr ID to actual year string (now $conn is available) =====
-$acayr_id = isset($_POST['acayr']) ? $_POST['acayr'] : '';
+// ===== Include database connection (reuses existing connect.php) =====
+require_once 'connection/connect.php'; // gives $conn (mysqli object)
+
+// ===== INITIALIZE POST VARIABLES =====
+if (!isset($_POST['acayr']))        $_POST['acayr'] = '';
+if (!isset($_POST['course']))       $_POST['course'] = '';
+if (!isset($_POST['batch']))        $_POST['batch'] = '';
+if (!isset($_POST['gender']))       $_POST['gender'] = '';
+if (!isset($_POST['filterOptions'])) $_POST['filterOptions'] = '';
+
+// ===== CONVERT acayr ID → year string =====
+$acayr_id = $_POST['acayr'];
 $year_str = '';
 if (!empty($acayr_id)) {
     $lookup = "SELECT academic_year FROM academic_year WHERE id = '" . mysqli_real_escape_string($conn, $acayr_id) . "'";
@@ -39,7 +28,180 @@ if (!empty($acayr_id)) {
         $year_str = $row['academic_year'];
     }
 }
+
+// // =============================================
+// // ===== EXPORT EXCEL LOGIC (runs before any HTML) =====
+// // =============================================
+// if (isset($_POST['export']) && $_POST['export'] == '1') {
+//     // Re‑build the query with the same filters and sorting
+//     $course_display = $_POST['course'];
+//     if ($_POST['course'] == "SHS") {
+//         $course_display = "Bachelor of Science Honours in Speech and Language Therapy";
+//     } elseif ($_POST['course'] == "OT") {
+//         $course_display = "Bachelor of Science Honours in Occupational Therapy";
+//     }
+
+//     $sql = "SELECT r.studentno, si.name, si.contact, r.distance,
+//                    (r.m_totincome + r.f_totincome + r.g_totincome) AS totincome,
+//                    r.medical, r.med_cat, r.siblings, r.eligibility
+//             FROM registration r
+//             LEFT JOIN student_info si ON r.studentno = si.studentno
+//             WHERE r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "'
+//               AND r.batch = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "'
+//               AND r.course = '" . mysqli_real_escape_string($conn, $course_display) . "'
+//               AND r.gender = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'
+//               AND (r.admit IS NULL OR r.admit = '0')
+//               AND r.stureg_id = (SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno)";
+
+//     // Apply sorting as per filterOptions
+//     if (!empty($_POST['filterOptions'])) {
+//         switch ($_POST['filterOptions']) {
+//             case 'income':      $sql .= " ORDER BY totincome"; break;
+//             case 'medical':     $sql .= " ORDER BY medical DESC"; break;
+//             case 'all':         $sql .= " ORDER BY distance DESC"; break;
+//             case 'eligibility': $sql .= " ORDER BY eligibility DESC, distance DESC"; break;
+//             default:            $sql .= " ORDER BY r.studentno"; break;
+//         }
+//     } else {
+//         $sql .= " ORDER BY r.studentno";
+//     }
+
+//     $result = mysqli_query($conn, $sql);
+//     if (!$result) {
+//         die('Query failed: ' . mysqli_error($conn));
+//     }
+
+//     // Headers for Excel download
+//     header('Content-Type: application/vnd.ms-excel');
+//     header('Content-Disposition: attachment; filename="hostel_applications_'.date('Ymd').'.xls"');
+//     header('Cache-Control: max-age=0');
+
+//     // Output the Excel file (HTML table)
+//     echo '<html><head><meta charset="UTF-8"></head><body>';
+//     echo '<table border="1">';
+//     echo '<tr>
+//             <th>#</th>
+//             <th>Student No</th>
+//             <th>Name</th>
+//             <th>Contact</th>
+//             <th>Distance (km)</th>
+//             <th>Total Income (Rs.)</th>
+//             <th>Medical</th>
+//             <th>Siblings</th>
+//             <th>Eligibility</th>
+//           </tr>';
+
+//     $serial = 1;
+//     while ($row = mysqli_fetch_assoc($result)) {
+//         $medical = ($row['medical'] == 1) ? 'Yes' . ($row['med_cat'] ? ' ('.$row['med_cat'].')' : '') : 'No';
+//         $siblings = ($row['siblings'] == 1) ? 'Yes' : 'No';
+//         $eligibility = ($row['eligibility'] == 1) ? 'Yes' : 'No';
+//         echo '<tr>
+//                 <td>' . $serial++ . '</td>
+//                 <td>' . htmlspecialchars($row['studentno']) . '</td>
+//                 <td>' . htmlspecialchars($row['name']) . '</td>
+//                 <td>' . htmlspecialchars($row['contact']) . '</td>
+//                 <td>' . number_format($row['distance'], 0) . '</td>
+//                 <td>' . number_format($row['totincome'], 2) . '</td>
+//                 <td>' . $medical . '</td>
+//                 <td>' . $siblings . '</td>
+//                 <td>' . $eligibility . '</td>
+//               </tr>';
+//     }
+//     echo '</table></body></html>';
+//     exit; // Stop all further output
+// }
+
+
+
+// =============================================
+// ===== EXPORT EXCEL LOGIC (CSV version) =====
+// =============================================
+if (isset($_POST['export']) && $_POST['export'] == '1') {
+    // Re‑build the same query (same as before)
+    $course_display = $_POST['course'];
+    if ($_POST['course'] == "SHS") {
+        $course_display = "Bachelor of Science Honours in Speech and Language Therapy";
+    } elseif ($_POST['course'] == "OT") {
+        $course_display = "Bachelor of Science Honours in Occupational Therapy";
+    }
+
+    $sql = "SELECT r.studentno, si.name, si.contact, r.distance,
+                   (r.m_totincome + r.f_totincome + r.g_totincome) AS totincome,
+                   r.medical, r.med_cat, r.siblings, r.eligibility
+            FROM registration r
+            LEFT JOIN student_info si ON r.studentno = si.studentno
+            WHERE r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "'
+              AND r.batch = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "'
+              AND r.course = '" . mysqli_real_escape_string($conn, $course_display) . "'
+              AND r.gender = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'
+              AND (r.admit IS NULL OR r.admit = '0')
+              AND r.stureg_id = (SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno)";
+
+    // Apply sorting as per filterOptions
+    if (!empty($_POST['filterOptions'])) {
+        switch ($_POST['filterOptions']) {
+            case 'income':      $sql .= " ORDER BY totincome"; break;
+            case 'medical':     $sql .= " ORDER BY medical DESC"; break;
+            case 'all':         $sql .= " ORDER BY distance DESC"; break;
+            case 'eligibility': $sql .= " ORDER BY eligibility DESC, distance DESC"; break;
+            default:            $sql .= " ORDER BY r.studentno"; break;
+        }
+    } else {
+        $sql .= " ORDER BY r.studentno";
+    }
+
+    $result = mysqli_query($conn, $sql);
+    if (!$result) {
+        die('Query failed: ' . mysqli_error($conn));
+    }
+
+    // Headers for CSV download
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="hostel_applications_'.date('Ymd').'.csv"');
+    header('Cache-Control: max-age=0');
+
+    // Open output stream
+    $output = fopen('php://output', 'w');
+    // Add BOM for UTF-8 (Excel compatibility)
+    fwrite($output, "\xEF\xBB\xBF");
+
+    // Header row
+    fputcsv($output, ['#', 'Student No', 'Name', 'Contact', 'Distance (km)', 'Total Income (Rs.)', 'Medical', 'Siblings', 'Eligibility']);
+
+    $serial = 1;
+    while ($row = mysqli_fetch_assoc($result)) {
+        $medical = ($row['medical'] == 1) ? 'Yes' . ($row['med_cat'] ? ' ('.$row['med_cat'].')' : '') : 'No';
+        $siblings = ($row['siblings'] == 1) ? 'Yes' : 'No';
+        $eligibility = ($row['eligibility'] == 1) ? 'Yes' : 'No';
+        fputcsv($output, [
+            $serial++,
+            $row['studentno'],
+            $row['name'],
+            $row['contact'],
+            number_format($row['distance'], 0),
+            number_format($row['totincome'], 2),
+            $medical,
+            $siblings,
+            $eligibility
+        ]);
+    }
+
+    fclose($output);
+    exit;
+}
+
+// =============================================
+// ===== CONTINUE WITH NORMAL PAGE RENDERING =====
+// =============================================
+$rows = 0;
+$save_sql = '';
+$debug = false;
 ?>
+<!doctype html>
+<html lang="en">
+<!-- header (includes the rest of the HTML head and also defines $conn again – harmless) -->
+<?php include 'header.php'; ?>
 
 <div class="container">
     <h2 class="text-center"><br>Hostel Applications List</h2><br><br>
@@ -52,7 +214,6 @@ if (!empty($acayr_id)) {
                 <label for="acayr">Academic Year:</label>
                 <select class="form-control" id="acayr" name="acayr" onchange="this.form.submit()">
                     <option value="">--Select Academic Year--</option>
-                    
                     <?php
                     $acayr_query = "SELECT MAX(hr.acayr) AS acayr, ay.academic_year 
                                     FROM hostel_reg hr
@@ -79,7 +240,6 @@ if (!empty($acayr_id)) {
                     <select class="form-control" id="course" name="course" onchange="this.form.submit()">
                         <option value="">--Select Course--</option>
                         <?php
-                        // Use $year_str (now defined)
                         $course = "SELECT DISTINCT course FROM registration WHERE applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' ORDER BY course";
                         $course_sql = mysqli_query($conn, $course);
                         while ($course_raw = mysqli_fetch_assoc($course_sql)) {
@@ -192,7 +352,7 @@ if (!empty($acayr_id)) {
     }
     ?>
 
-    <!-- ===== ACTION FORM (Table + Save / Publish) ===== -->
+    <!-- ===== ACTION FORM (Table + Save / Publish / Export) ===== -->
     <?php if (isset($rows) && $rows > 0): ?>
         <form id="actionForm" action="" method="post">
             <!-- Hidden fields to preserve filter values -->
@@ -262,6 +422,9 @@ if (!empty($acayr_id)) {
                 <button type="submit" class="btn" style="background:#2F4F4F;color:white;padding:6px;" name="publish" value="1">
                     Publish List <i class="fa fa-cloud-upload" style="color:white;padding:6px;"></i>
                 </button>
+                <button type="submit" class="btn" style="background:#2F4F4F;color:white;padding:6px;" name="export" value="1">
+                    Download Excel <i class="fa fa-file-excel-o" style="color:white;padding:6px;"></i>
+                </button>
             </div>
         </form>
     <?php else: ?>
@@ -275,7 +438,7 @@ if (!empty($acayr_id)) {
 
 <?php
 // =============================================
-// ===== SAVE LOGIC (UPDATED – uses studentno and $year_str) =====
+// ===== SAVE LOGIC (unchanged) =====
 // =============================================
 if (isset($_POST['save']) && $_POST['save'] == '1') {
     if ($debug) {
@@ -329,7 +492,7 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
 }
 
 // =============================================
-// ===== PUBLISH LOGIC (FIXED – uses $year_str) =====
+// ===== PUBLISH LOGIC (unchanged) =====
 // =============================================
 if (isset($_POST['publish']) && $_POST['publish'] == '1') {
     require 'mail/gmail_api.php';
