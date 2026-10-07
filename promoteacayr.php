@@ -1,97 +1,136 @@
 <?php
 session_start();
-include ("connection/connect.php");
+include("connection/connect.php");
 date_default_timezone_set("Asia/Colombo");
 
 // Check if user is logged in
-if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
+if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     header("location: account/login.php");
     exit;
 }
 
-if(isset($_GET['id'])) {
-    $id = $_GET['id'];
-    
-    //write query to promote ALL THE students in academic year to the next year in stu_bed table
+if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+    $id = (int)$_GET['id'];
 
-    //Get all the academic_year by the id from academic_year table
-    $query = "SELECT academic_year FROM academic_year WHERE id = $id";
-    $result = $conn->query($query);
-    $row = $result->fetch_assoc();
-    $academic_year = $row['academic_year'];
-    //Get the next academic year by splitting the current academic year and incrementing the years
-    $years = explode('/', $academic_year);
-    $next_academic_year = ($years[0] + 1) . '/' . ($years[1] + 1);
-
-    //check whether the next academic year already exists in the database
-    $query = "SELECT id FROM academic_year WHERE academic_year = '$next_academic_year'";
-    $result = $conn->query($query);
-    if($result->num_rows > 0) {
-        
-    }else{
-        //error message
-        echo "<script>alert('Next academic year does not exist! Please add the next academic year before promoting.');</script>";
-        echo "<script>window.location='addacayr.php';</script>";
+    // --- Step 1: Get old academic year string ---
+    $stmt = $conn->prepare("SELECT academic_year FROM academic_year WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result->num_rows == 0) {
+        echo "<script>alert('Academic year not found.'); window.location='addacayr.php';</script>";
         exit;
     }
+    $row = $result->fetch_assoc();
+    $old_academic_year = $row['academic_year'];
+    $stmt->close();
 
+    // --- Step 2: Calculate next academic year (e.g., 2024/2025 -> 2025/2026) ---
+    $years = explode('/', $old_academic_year);
+    $next_academic_year = ($years[0] + 1) . '/' . ($years[1] + 1);
 
-    //promote 
-    $query = "UPDATE academic_year SET is_promoted = 1, promoted_on = NOW() WHERE id = $id";
-    $conn->query($query);
+    // --- Step 3: Check if the next academic year exists ---
+    $stmt = $conn->prepare("SELECT id FROM academic_year WHERE academic_year = ?");
+    $stmt->bind_param("s", $next_academic_year);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result->num_rows == 0) {
+        echo "<script>alert('Next academic year ($next_academic_year) does not exist! Please add it first.'); window.location='addacayr.php';</script>";
+        exit;
+    }
+    $stmt->close();
 
-    // for all the entries in stureg_bed table update with the next academic year, like if this year is 2023/2024 then the next should be 2024/2025
-    //  stureg_bed (stureg_id, bed_id, academic_year) academic_year is a int id that reference to academic_year table
+    // --- Step 4: Mark the old year as promoted ---
+    $stmt = $conn->prepare("UPDATE academic_year SET is_promoted = 1, promoted_on = NOW() WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->close();
 
+    // --- Step 5: Get all bed IDs occupied by students in the old year ---
+    $stmt = $conn->prepare("SELECT bed_id FROM registration WHERE applying_acayr = ? AND bed_id IS NOT NULL AND bed_id != 0");
+    $stmt->bind_param("s", $old_academic_year);
+    $stmt->execute();
+    $bed_result = $stmt->get_result();
+    $bed_ids = [];
+    while ($bed_row = $bed_result->fetch_assoc()) {
+        $bed_ids[] = (int)$bed_row['bed_id'];
+    }
+    $stmt->close();
 
-    //Set all the beds that allocated to the students in the current academic year to not allocated, so that the students can be allocated to the beds in the next academic year
-    $query = "UPDATE hostel_bed SET availability = 1 WHERE bed_id IN (SELECT bed_id FROM studreg_bed WHERE academic_year_id = $id)";
-    $conn->query($query);
+    // --- Step 6: Free those beds (set availability = 1) ---
+    if (!empty($bed_ids)) {
+        $placeholders = implode(',', array_fill(0, count($bed_ids), '?'));
+        $types = str_repeat('i', count($bed_ids));
+        $sql = "UPDATE hostel_bed SET availability = 1 WHERE bed_id IN ($placeholders)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$bed_ids);
+        $stmt->execute();
+        $stmt->close();
+    }
 
+    // --- Step 7: Insert new student records for the new academic year (preserve history) ---
 
+    // First, check if any students already exist for the new year (to avoid duplicates)
+    $stmt = $conn->prepare("SELECT COUNT(*) as cnt FROM registration WHERE applying_acayr = ?");
+    $stmt->bind_param("s", $next_academic_year);
+    $stmt->execute();
+    $cnt_result = $stmt->get_result();
+    $cnt_row = $cnt_result->fetch_assoc();
+    $stmt->close();
 
-    // //first get the next academic year id from academic_year table
-    // $query = "SELECT id FROM academic_year WHERE academic_year = '$next_academic_year'";
-    // $result = $conn->query($query);
-    // $row = $result->fetch_assoc();
-    // $next_academic_year_id = $row['id'];
-    // //update the stureg_bed table with the next academic year id
-    // $query = "UPDATE studreg_bed SET academic_year_id = $next_academic_year_id WHERE academic_year_id = $id";
-    // $conn->query($query);
+    if ($cnt_row['cnt'] == 0) {
+        // No records yet for the new year – safe to insert copies
+        // Prepare the INSERT ... SELECT query
+        $insert_sql = "
+            INSERT INTO registration (
+                applying_acayr, regdate, batch, course, studentno, email, gender,
+                distance, scholarships, shol_account, lowincome, m_job, m_jobcat,
+                m_salary, m_otherincome, m_totincome, m_paysheet, m_paysheet_tmp,
+                f_job, f_jobcat, f_salary, f_otherincome, f_totincome, f_paysheet,
+                f_paysheet_tmp, g_job, g_jobcat, g_salary, g_otherincome, g_totincome,
+                g_paysheet, g_paysheet_tmp, income_certificate, income_certificate_tmp,
+                medical, med_cat, med_desc, med_file, med_file_tmp, siblings, eligibility,
+                admit, bed_id, payslip, payslip_tmp, payment, e_contact_name,
+                e_contact_number, e_contact_relation
+            )
+            SELECT 
+                ? AS applying_acayr,
+                NOW() AS regdate,
+                batch, course, studentno, email, gender,
+                distance, scholarships, shol_account, lowincome, m_job, m_jobcat,
+                m_salary, m_otherincome, m_totincome, m_paysheet, m_paysheet_tmp,
+                f_job, f_jobcat, f_salary, f_otherincome, f_totincome, f_paysheet,
+                f_paysheet_tmp, g_job, g_jobcat, g_salary, g_otherincome, g_totincome,
+                g_paysheet, g_paysheet_tmp, income_certificate, income_certificate_tmp,
+                medical, med_cat, med_desc, med_file, med_file_tmp, siblings, eligibility,
+                0 AS admit,
+                NULL AS bed_id,
+                payslip, payslip_tmp, payment, e_contact_name, e_contact_number, e_contact_relation
+            FROM registration 
+            WHERE applying_acayr = ?
+        ";
 
+        $stmt = $conn->prepare($insert_sql);
+        $stmt->bind_param("ss", $next_academic_year, $old_academic_year);
+        if ($stmt->execute()) {
+            $inserted = $stmt->affected_rows;
+            $stmt->close();
+            $message = "Academic year promoted successfully! $inserted student(s) copied to $next_academic_year. Beds have been freed.";
+        } else {
+            $error = $stmt->error;
+            $stmt->close();
+            $message = "Error copying students: $error";
+        }
+    } else {
+        // Records already exist for the new year – do not duplicate
+        $message = "Promotion completed. Students already exist for $next_academic_year. Beds freed (if any).";
+    }
 
-    
+    // --- Step 8: Redirect with message ---
+    echo "<script>alert('$message'); window.location='addacayr.php';</script>";
+    exit;
 
-
-
-
-
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
-    // $conn->query(query);
-    
-    // // Set the selected year as current
-    // $stmt = $conn->prepare("UPDATE academic_year SET is_current = 1 WHERE id = ?");
-    // $stmt->bind_param("i", $id);
-    
-    // if($stmt->execute()) {
-    //     echo "<script>alert('Academic year promoted successfully!');</script>";
-    // } else {
-    //     echo "<script>alert('Error promoting academic year!');</script>";
-    // }
-    
-    // $stmt->close();
+} else {
     header("location: addacayr.php");
     exit;
 }

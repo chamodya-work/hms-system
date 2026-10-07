@@ -1,11 +1,18 @@
 <?php
 // Initialize the session
 session_start();
+
 // Check if the user is logged in, if not then redirect him to login page
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     header("location: account/login.php");
     exit;
 }
+
+// Initialize POST variables to avoid undefined index warnings
+if (!isset($_POST['acayr']))     $_POST['acayr'] = '';
+if (!isset($_POST['course']))    $_POST['course'] = '';
+if (!isset($_POST['batch']))     $_POST['batch'] = '';
+if (!isset($_POST['studentno'])) $_POST['studentno'] = '';
 ?>
 <!doctype html>
 <html lang="en">
@@ -16,77 +23,71 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 
     <!-- Filters -->
     <form method="post" class="row mb-4">
+        <!-- Academic Year -->
         <div class="col-md-3">
             <label for="acayr">Academic Year:</label>
-            <select class="form-control" id="acayr" name="acayr" onchange="submit()">
+            <select class="form-control" id="acayr" name="acayr" onchange="this.form.submit()">
                 <option value="">--Select Academic Year--</option>
                 <?php
-                $acayr = "SELECT acayr,academic_year FROM hostel_reg hr INNER JOIN academic_year ay ON hr.acayr=ay.id WHERE acayr!='0' GROUP BY acayr ORDER BY acayr DESC";
-                $acayr_sql = mysqli_query($conn, $acayr);
-                while ($acayr_raw = mysqli_fetch_assoc($acayr_sql)) {
-                    $aacayr = $acayr_raw['acayr'];
-                    $academic_year = $acayr_raw['academic_year'];
-                    ?>
-                    <option value="<?php echo $aacayr; ?>" <?php if (isset($_POST['acayr'])) {
-                           echo ($_POST['acayr'] == $aacayr) ? 'selected' : '';
-                       } ?>>
-                        <?php echo $academic_year; ?>
-                    </option>
-                    <?php
+                // Get distinct academic years from registration (actual applications)
+                $acayr_query = "SELECT DISTINCT applying_acayr FROM registration ORDER BY applying_acayr DESC";
+                $acayr_sql = mysqli_query($conn, $acayr_query);
+                while ($row = mysqli_fetch_assoc($acayr_sql)) {
+                    $aacayr = $row['applying_acayr'];
+                    $selected = ($_POST['acayr'] == $aacayr) ? 'selected' : '';
+                    echo "<option value='$aacayr' $selected>$aacayr</option>";
                 }
                 ?>
             </select>
         </div>
+
+        <!-- Course -->
         <div class="col-md-3">
             <label for="course">Course:</label>
-            <select class="form-control" id="course" name="course" onchange="submit()">
+            <select class="form-control" id="course" name="course" onchange="this.form.submit()">
                 <option value="">--Select Course--</option>
                 <?php
-                if (isset($_POST['acayr']) AND ($_POST['acayr']) != null) {
-                    $course = "SELECT course FROM hostel_reg WHERE acayr = '" . $_POST['acayr'] . "' GROUP BY course ORDER BY course";
-                    $course_sql = mysqli_query($conn, $course);
-                    while ($course_raw = mysqli_fetch_assoc($course_sql)) {
-                        $acourse = $course_raw['course'];
-                        ?>
-                        <option value="<?php echo $acourse; ?>" <?php if (isset($_POST['course'])) {
-                               echo ($_POST['course'] == $acourse) ? 'selected' : '';
-                           } ?>>
-                            <?php echo $acourse; ?>
-                        </option>
-                        <?php
+                if (!empty($_POST['acayr'])) {
+                    $course_query = "SELECT DISTINCT course FROM registration WHERE applying_acayr = '" . $_POST['acayr'] . "' ORDER BY course";
+                    $course_sql = mysqli_query($conn, $course_query);
+                    while ($row = mysqli_fetch_assoc($course_sql)) {
+                        $acourse = $row['course'];
+                        $selected = ($_POST['course'] == $acourse) ? 'selected' : '';
+                        echo "<option value='$acourse' $selected>$acourse</option>";
                     }
                 }
                 ?>
             </select>
         </div>
+
+        <!-- Batch -->
         <div class="col-md-3">
             <label for="batch">Batch:</label>
-            <select class="form-control" id="batch" name="batch" onchange="submit()">
+            <select class="form-control" id="batch" name="batch" onchange="this.form.submit()">
                 <option value="">--Select Batch--</option>
                 <?php
-                if (isset($_POST['course']) AND ($_POST['course']) != null) {
-                    $batch = "SELECT batch FROM hostel_reg WHERE acayr = '" . $_POST['acayr'] . "' AND course = '" . $_POST['course'] . "' GROUP BY batch ORDER BY batch";
-                    $batch_sql = mysqli_query($conn, $batch);
-                    while ($batch_raw = mysqli_fetch_assoc($batch_sql)) {
-                        $abatch = $batch_raw['batch'];
-                        ?>
-                        <option value="<?php echo $abatch; ?>" <?php if (isset($_POST['batch'])) {
-                               echo ($_POST['batch'] == $abatch) ? 'selected' : '';
-                           } ?>>
-                            <?php echo $abatch; ?>
-                        </option>
-                        <?php
+                if (!empty($_POST['acayr']) && !empty($_POST['course'])) {
+                    $batch_query = "SELECT DISTINCT batch FROM registration WHERE applying_acayr = '" . $_POST['acayr'] . "' AND course = '" . $_POST['course'] . "' ORDER BY batch";
+                    $batch_sql = mysqli_query($conn, $batch_query);
+                    while ($row = mysqli_fetch_assoc($batch_sql)) {
+                        $abatch = $row['batch'];
+                        $selected = ($_POST['batch'] == $abatch) ? 'selected' : '';
+                        echo "<option value='$abatch' $selected>$abatch</option>";
                     }
                 }
                 ?>
             </select>
         </div>
+
+        <!-- Student No -->
         <div class="col-md-3">
-            <label for="batch">Student No</label>
+            <label for="studentno">Student No</label>
             <input type="text" class="form-control" id="studentno" name="studentno"
-                   value="<?php echo isset($_POST['studentno']) ? htmlspecialchars($_POST['studentno']) : ''; ?>"
-                   placeholder="Enter Student No" onchange="submit()">
+                   value="<?php echo htmlspecialchars($_POST['studentno']); ?>"
+                   placeholder="Enter Student No" onchange="this.form.submit()">
         </div>
+
+        <!-- Table -->
         <table class="table table-bordered mt-4">
             <thead>
                 <tr>
@@ -100,44 +101,56 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
                     <th>Bed No.</th>
                 </tr>
             </thead>
-            <tbody>
-                <?php
-        $studentCriteria = "";
-                if (isset($_POST['studentno']) AND ($_POST['studentno']) != null) {
-                    $studentCriteria = "AND si.studentno LIKE '%" . (isset($_POST['studentno']) ? $_POST['studentno'] : '') . "%'";
-    
-                }
-                $sql = "SELECT * FROM student_info si INNER JOIN registration r ON si.studentno = r.studentno  INNER JOIN studreg_bed sb ON sb.stureg_id=r.stureg_id INNER JOIN hostel_bed hb ON hb.bed_id=sb.bed_id WHERE r.applying_acayr=(SELECT academic_year FROM academic_year WHERE is_current=1)
-            AND r.course='" . $_POST['course'] . "' AND r.batch='" . $_POST['batch'] . "' " . $studentCriteria . " ORDER BY si.studentno";
-
-                $result = mysqli_query($conn, $sql);
-
-                if (mysqli_num_rows($result) > 0) {
-                    while ($row = mysqli_fetch_assoc($result)) {
-                        echo "<tr>";
-                        echo "<td>" . $row['studentno'] . "</td>";
-                        echo "<td>" . $row['name'] . "</td>";
-                        echo "<td>" . $row['contact'] . "</td>";
-                        echo "<td>" . $row['email'] . "</td>";
-                        echo "<td>" . $row["batch"] . "</td>";
-                        echo "<td>" . $row["hos_id"] . "</td>";
-                        echo "<td>" . $row["room_no"] . "</td>";
-                        echo "<td>" . $row["bed_no"] . "</td>";
-                        echo "</tr>";
+                <tbody>
+                    <?php
+                    // Build the query with dynamic filters
+                    $conditions = [];
+                    if (!empty($_POST['acayr'])) {
+                        $conditions[] = "r.applying_acayr = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "'";
                     }
-                } else {
-                    echo "<tr><td colspan='7'>No students found.</td></tr>";
-                }
-                ?>
-            </tbody>
+                    if (!empty($_POST['course'])) {
+                        $conditions[] = "r.course = '" . mysqli_real_escape_string($conn, $_POST['course']) . "'";
+                    }
+                    if (!empty($_POST['batch'])) {
+                        $conditions[] = "r.batch = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "'";
+                    }
+                    if (!empty($_POST['studentno'])) {
+                        $conditions[] = "si.studentno LIKE '%" . mysqli_real_escape_string($conn, $_POST['studentno']) . "%'";
+                    }
+
+                    $where = (count($conditions) > 0) ? "WHERE " . implode(" AND ", $conditions) : "";
+
+                    $sql = "SELECT si.studentno, si.name, si.contact, si.email, r.batch, 
+                                hb.hos_id, hb.room_no, hb.bed_no
+                            FROM student_info si
+                            INNER JOIN registration r ON si.studentno = r.studentno
+                            LEFT JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+                            $where
+                            ORDER BY si.studentno";
+
+                    $result = mysqli_query($conn, $sql);
+                    if (mysqli_num_rows($result) > 0) {
+                        while ($row = mysqli_fetch_assoc($result)) {
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($row['studentno']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['contact']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['email']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['batch']) . "</td>";
+                            // FIXED: Use null coalescing for hostel fields (may be NULL)
+                            echo "<td>" . htmlspecialchars($row['hos_id'] ?? '') . "</td>";
+                            echo "<td>" . htmlspecialchars($row['room_no'] ?? '') . "</td>";
+                            echo "<td>" . htmlspecialchars($row['bed_no'] ?? '') . "</td>";
+                            echo "</tr>";
+                        }
+                    } else {
+                        echo "<tr><td colspan='8'>No students found.</td></tr>";
+                    }
+                    ?>
+                </tbody>
         </table>
-</div>
-
-
-
-
+    </form>
 </div>
 
 <?php include 'footer.php'; ?>
-
 </html>

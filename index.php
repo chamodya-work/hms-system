@@ -195,14 +195,29 @@ if ($_SESSION["cat"] == "1") {
 			</h1>
 			<?php
 			// List all the hostels assigned to the subwarden
+			// if ($_SESSION["cat"] == '2' && isset($_SESSION['warden_id'])) {
+			// 	$warden_id = '7';
+			// 	$sql = "SELECT wh.hos_id FROM warden_hostel wh 
+			// 	WHERE wh.warden_id = $warden_id";
+			// 	$result = $conn->query($sql);
+			// 	// Get into an array
+			// 	$assigned_hostels = [];
+			// 	if ($result->num_rows > 0) {
+			// 		while ($row = $result->fetch_assoc()) {
+			// 			$assigned_hostels[] = $row['hos_id'];
+			// 		}
+			// 	}
+			// }
+
+			// Initialize assigned hostels array
+			$assigned_hostels = [];
+
+			// For subwarden (cat=2) – get assigned hostels from session if available
 			if ($_SESSION["cat"] == '2' && isset($_SESSION['warden_id'])) {
-				$warden_id = '7';
-				$sql = "SELECT wh.hos_id FROM warden_hostel wh 
-				WHERE wh.warden_id = $warden_id";
+				$warden_id = $_SESSION['warden_id']; // Use session value, not hardcoded
+				$sql = "SELECT wh.hos_id FROM warden_hostel wh WHERE wh.warden_id = $warden_id";
 				$result = $conn->query($sql);
-				// Get into an array
-				$assigned_hostels = [];
-				if ($result->num_rows > 0) {
+				if ($result && $result->num_rows > 0) {
 					while ($row = $result->fetch_assoc()) {
 						$assigned_hostels[] = $row['hos_id'];
 					}
@@ -221,24 +236,29 @@ if ($_SESSION["cat"] == "1") {
 				if ($_SESSION['cat'] == '4') {
 					echo "<a class='btn btn-dark btn-lg w-100' style='color:white;' href='assigned.php'>Assigned Work</a>";
 
-				} elseif ($_SESSION["cat"] == '1') {
-					//apply now (if batch and course matches with an opened registration)
-					$regopen =
-						"SELECT hr.*, ay.academic_year AS acayr 
-					FROM `hostel_reg` hr 
-					JOIN `academic_year` ay ON hr.acayr = ay.id
-					WHERE hr.rego<=now() AND now()<=hr.regc AND hr.batch = '" . $batch . "';";
+				} 
+				
+				//updated issue of not showing the repair/maintenance thing for students
+				elseif ($_SESSION["cat"] == '1') {
+					// --- 1. Check if a registration period is open for this batch ---
+					$regopen = "SELECT hr.*, ay.academic_year AS acayr 
+								FROM `hostel_reg` hr 
+								JOIN `academic_year` ay ON hr.acayr = ay.id
+								WHERE hr.rego <= NOW() AND NOW() <= hr.regc AND hr.batch = '" . $batch . "'";
 					$regopen_sql = mysqli_query($conn, $regopen);
 
 					if (mysqli_num_rows($regopen_sql) > 0) {
+						// Registration is open → show Apply/Edit button
 						$regopen_raw = mysqli_fetch_assoc($regopen_sql);
 						$_SESSION['acayr'] = $regopen_raw['acayr'];
 						?>
 						<form method='post'>
-							<button type='submit' name='apply' class='btn btn-dark btn-lg w-100'
-								style='color:white;margin-bottom: 8px;'>
+							<button type='submit' name='apply' class='btn btn-dark btn-lg w-100' style='color:white;margin-bottom: 8px;'>
 								<?php
-								$existQuery = "SELECT stureg_id FROM registration WHERE studentno='$stnm' AND applying_acayr='" . $_SESSION['acayr'] . "' ORDER BY regdate DESC LIMIT 1";
+								// Check if the student already applied for this academic year
+								$existQuery = "SELECT stureg_id FROM registration 
+											WHERE studentno='$stnm' AND applying_acayr='" . $_SESSION['acayr'] . "' 
+											ORDER BY regdate DESC LIMIT 1";
 								$existResult = mysqli_query($conn, $existQuery);
 								if (mysqli_num_rows($existResult) > 0) {
 									echo "Edit Your Application";
@@ -246,17 +266,19 @@ if ($_SESSION["cat"] == "1") {
 									echo "Apply Now";
 								}
 								?>
-
-
-
 							</button>
 						</form>
 						<?php
 					} else {
+						// No registration open → show status messages (eligibility, payment, etc.)
 						echo "<p class='text-muted text-center mb-3'><em>No Hostel Applications Open</em></p>";
-						$eligibility = $payment = $admit = $bed_id = '';
 
-						$sql = "SELECT `applying_acayr`, `eligibility`, payment, `admit`, `bed_id` FROM `registration` WHERE applying_acayr = (SELECT `acayr` FROM `hostel_reg` ORDER BY hosreg_id DESC LIMIT 1) AND studentno='$stnm' ORDER BY `regdate` DESC LIMIT 1;";
+						// Get the student's application for the latest academic year (from hostel_reg)
+						$sql = "SELECT `applying_acayr`, `eligibility`, payment, `admit`, `bed_id` 
+								FROM `registration` 
+								WHERE applying_acayr = (SELECT `acayr` FROM `hostel_reg` ORDER BY hosreg_id DESC LIMIT 1) 
+								AND studentno='$stnm' 
+								ORDER BY `regdate` DESC LIMIT 1";
 						$sql_run = mysqli_query($conn, $sql);
 
 						if (mysqli_num_rows($sql_run) > 0) {
@@ -265,78 +287,84 @@ if ($_SESSION["cat"] == "1") {
 							$payment = $sql_raw['payment'];
 							$admit = $sql_raw['admit'];
 							$bed_id = $sql_raw['bed_id'];
-						}
 
-						if ($eligibility == 'selected' AND $admit == '0' AND $payment == '0') {
-							echo "<a class='btn btn-dark btn-lg w-100' style='color:white;' href='payments.php'>Upload Payment Receipt</a>";
-						} elseif ($eligibility == 'selected' AND $admit == '0' AND $payment == '1') {
-							echo "<p class='alert alert-info text-center'>Hostel Allocation is in Progress...</p>";
-						} elseif ($admit == '1' AND ($bed_id == '0' OR $bed_id == null)) {
-							echo "<a class='btn btn-dark btn-lg w-100' style='color:white;' href='reg.php'>Choose a Room</a>";
-						} elseif ($admit == '1' AND ($bed_id != '0' OR $bed_id != null)) {
-							$sql = "SELECT `hos_id`, `floor_no`, `room_no`, `bed_no` FROM `hostel_bed` WHERE `bed_id` = $bed_id";
-							$sql_run = mysqli_query($conn, $sql);
-							if (mysqli_num_rows($sql_run) > 0) {
-								$sql_raw = mysqli_fetch_assoc($sql_run);
-								$hos_id = $sql_raw['hos_id'];
-								$floor_no = $sql_raw['floor_no'];
-								$room_no = $sql_raw['room_no'];
-								$bed_no = $sql_raw['bed_no'];
+							// Show appropriate action based on eligibility & payment
+							if ($eligibility == 'selected' && $admit == '0' && $payment == '0') {
+								echo "<a class='btn btn-dark btn-lg w-100' style='color:white;' href='payments.php'>Upload Payment Receipt</a>";
+							} elseif ($eligibility == 'selected' && $admit == '0' && $payment == '1') {
+								echo "<p class='alert alert-info text-center'>Hostel Allocation is in Progress...</p>";
+							} elseif ($admit == '1' && ($bed_id == '0' || $bed_id == null)) {
+								echo "<a class='btn btn-dark btn-lg w-100' style='color:white;' href='reg.php'>Choose a Room</a>";
 							}
-							echo "<div class='alert alert-success'><strong>Your Bed:</strong> Hostel $hos_id - Floor $floor_no - Room $room_no - Bed $bed_no</div>";
-							echo "<a class='btn btn-dark btn-lg w-100' style='color:white;' href='repair.php'>Request Maintenance/Repair</a>";
+							// Note: if admit==1 and bed_id is set, we show bed details + maintenance below
 						}
 					}
 
-					$ifreg = "SELECT `stureg_id`, regdate FROM `registration` WHERE `studentno`='$stnm' AND `applying_acayr` ='2024/2025' ORDER by stureg_id DESC LIMIT 1";
-					$ifreg_sql = mysqli_query($conn, $ifreg);
+					// --- 2. Always check if the student is currently admitted and has a bed ---
+					// (Runs regardless of whether registration is open or not)
+					$admit_check_sql = "SELECT admit, bed_id, regdate 
+										FROM registration 
+										WHERE studentno='$stnm' 
+										AND admit = 1 
+										AND bed_id IS NOT NULL 
+										AND bed_id != 0 
+										ORDER BY regdate DESC LIMIT 1";
+					$admit_check_result = mysqli_query($conn, $admit_check_sql);
 
-					if (mysqli_num_rows($ifreg_sql) == 0) {
+					if (mysqli_num_rows($admit_check_result) > 0) {
+						// Student is admitted and has a bed → show bed details and maintenance buttons
+						$admit_row = mysqli_fetch_assoc($admit_check_result);
+						$bed_id = $admit_row['bed_id'];
+
+						// Fetch bed details
+						$bed_sql = "SELECT hos_id, floor_no, room_no, bed_no FROM hostel_bed WHERE bed_id = $bed_id";
+						$bed_result = mysqli_query($conn, $bed_sql);
+						if ($bed_row = mysqli_fetch_assoc($bed_result)) {
+							echo "<div class='alert alert-success'>
+									<strong>Your Bed:</strong> 
+									Hostel {$bed_row['hos_id']} - Floor {$bed_row['floor_no']} - Room {$bed_row['room_no']} - Bed {$bed_row['bed_no']}
+								</div>";
+						}
 						?>
-						<form method='post'>
-							<button type='submit' name='hosreg' class='btn btn-dark btn-lg w-100'
-								style='color:white; margin-bottom: 8px;'>Record Current Hostel Details</button>
-							<a href="repair.php" class="btn btn-dark btn-lg w-100" style="color:white;margin-bottom: 8px;">Request
-								Maintenance/Repair</a>
-							<a href="repair-student-view.php" class="btn btn-dark btn-lg w-100" style="color:white;">View My
-								Maintenance/Repair Requests</a>
-						</form>
+						<!-- Maintenance/Repair buttons -->
+						<a href="repair.php" class="btn btn-dark btn-lg w-100" style="color:white;margin-bottom: 8px;">Request Maintenance/Repair</a>
+						<a href="repair-student-view.php" class="btn btn-dark btn-lg w-100" style="color:white;">View My Maintenance/Repair Requests</a>
 						<?php
 					} else {
-						$getreg = mysqli_fetch_assoc($ifreg_sql);
-						$lu = $getreg['regdate'];
-						echo "<p class='text-muted text-center'>Last Applied: " . htmlspecialchars($lu) . "</p>";
+						// Student is not admitted → show a last-applied message if they have ever applied
+						$last_applied_sql = "SELECT regdate FROM registration WHERE studentno='$stnm' ORDER BY regdate DESC LIMIT 1";
+						$last_applied_result = mysqli_query($conn, $last_applied_sql);
+						if (mysqli_num_rows($last_applied_result) > 0) {
+							$last_row = mysqli_fetch_assoc($last_applied_result);
+							echo "<p class='text-muted text-center'>Last Applied: " . htmlspecialchars($last_row['regdate']) . "</p>";
+						} else {
+							echo "<p class='text-muted text-center'>You have not applied for hostel accommodation yet.</p>";
+						}
 					}
 				}
-				//for subwarden
+
+
+
+				//for subwarden (cat=2) and hostel secretary (cat=3)
 				elseif ($_SESSION["cat"] == '3' || $_SESSION["cat"] == '2') {
 					?>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="hostellist.php">Hostel Information</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="addacayr.php">Add
-						New Academic Year</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="hosreglist.php">Hostel Applications Dates</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="viewstudent.php">View Student Information</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="hostellist.php">Hostel Information</a>
 					<?php
+					// Extra options only for hostel secretary
 					if ($_SESSION["cat"] == '3') {
 						?>
-						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="select.php">Review
-							Hostel Applications</a>
-						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="user.php">Manage
-							User Accounts</a>
-						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="warden.php">Manage
-							Wardens</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="addacayr.php">Add New Academic Year</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="hosreglist.php">Hostel Applications Dates</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewstudent.php">View Student Information</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="select.php">Review Hostel Applications</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="user.php">Manage User Accounts</a>
+						<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="warden.php">Manage Wardens</a>
 						<?php
 					}
 					?>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewselect.php">View
-						Selected List</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="viewcurrent.php">View Current Student List</a>
-					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;"
-						href="select-room.php">Update Rooms</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewselect.php">View Selected List</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="viewcurrent.php">View Current Student List</a>
+					<a class="btn btn-dark btn-lg w-100" style="color:white; margin-bottom: 8px;" href="select-room.php">Update Rooms</a>
 					<a class="btn btn-dark btn-lg w-100" style="color:white;" href="repair-view.php">Maintenance/Repairs</a>
 					<?php
 				}
@@ -357,31 +385,53 @@ if ($_SESSION["cat"] == "1") {
 if ($_SESSION["cat"] == '1') {
 	$repair = "SELECT rep_id, req_date, cat, description, status FROM repairs WHERE stu_no = '$stnm'; ";
 }
+
+// if ($_SESSION["cat"] == '2') {
+// 	$assigned_hostels_str = implode(',', $assigned_hostels);
+
+// 	if (!empty($assigned_hostels)) {
+// 		// Escape each value for safety and wrap in quotes
+// 		$escaped_hostels = array_map(function ($id) use ($conn) {
+// 			return "'" . mysqli_real_escape_string($conn, $id) . "'";
+// 		}, $assigned_hostels);
+
+// 		// Join them into a comma-separated string
+// 		$assigned_hostels_str = implode(',', $escaped_hostels);
+
+// 		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
+// 							FROM repairs r
+// 							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+// 							WHERE r.status = 'pending'
+// 							AND hb.hos_id IN ($assigned_hostels_str)";
+// 	} else {
+// 		// No hostels assigned → return empty result
+// 		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
+// 							FROM repairs r
+// 							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+// 							WHERE 0"; // always false
+// 	}
+// }
+
+// For subwarden (cat=2) – show pending repairs for assigned hostels
 if ($_SESSION["cat"] == '2') {
-	$assigned_hostels_str = implode(',', $assigned_hostels);
-
-	if (!empty($assigned_hostels)) {
-		// Escape each value for safety and wrap in quotes
-		$escaped_hostels = array_map(function ($id) use ($conn) {
-			return "'" . mysqli_real_escape_string($conn, $id) . "'";
-		}, $assigned_hostels);
-
-		// Join them into a comma-separated string
-		$assigned_hostels_str = implode(',', $escaped_hostels);
-
-		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
-							FROM repairs r
-							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
-							WHERE r.status = 'pending'
-							AND hb.hos_id IN ($assigned_hostels_str)";
-	} else {
-		// No hostels assigned → return empty result
-		$repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
-							FROM repairs r
-							INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
-							WHERE 0"; // always false
-	}
+    if (!empty($assigned_hostels)) {
+        // Escape and quote each hostel ID
+        $escaped_hostels = array_map(function ($id) use ($conn) {
+            return "'" . mysqli_real_escape_string($conn, $id) . "'";
+        }, $assigned_hostels);
+        $assigned_hostels_str = implode(',', $escaped_hostels);
+        $repair = "SELECT r.rep_id, r.req_date, r.cat, r.description, r.status, hb.bed_id
+                   FROM repairs r
+                   INNER JOIN hostel_bed hb ON r.bed_id = hb.bed_id
+                   WHERE r.status = 'pending'
+                   AND hb.hos_id IN ($assigned_hostels_str)";
+    } else {
+        // No hostels assigned – show no repairs
+        $repair = "SELECT rep_id, req_date, cat, description, status, bed_id FROM repairs WHERE 0";
+    }
 }
+
+
 if ($_SESSION["cat"] == '3') {
 	$repair = "SELECT rep_id, req_date, cat, description, status FROM repairs WHERE status = 'completed'; ";
 }
@@ -512,7 +562,9 @@ if ($_SESSION["cat"] == '1' || $_SESSION["cat"] == '3') {
 			?>
 
 			<!-- Profile 2 -->
-			<div class="col-md-4">
+			 <!-- THIS IS HARDCODED PROFILE SO THIS IS COMMENTED -->
+			  
+			<!-- <div class="col-md-4">
 				<div class="profile-card">
 					<img src="images/Mr Danajaya.jpg" alt="Mr. D.D.D. Withanage" class="profile-img">
 					<div class="profile-name">Mr. D.D.D. Withanage</div>
@@ -532,7 +584,7 @@ if ($_SESSION["cat"] == '1' || $_SESSION["cat"] == '3') {
 						</div>
 					</div>
 				</div>
-			</div>
+			</div> -->
 
 
 		</div>

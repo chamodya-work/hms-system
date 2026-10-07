@@ -43,10 +43,10 @@ if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
                         ?>
                     
                         <tr>
-                            <td><?php echo htmlspecialchars($hos_id); ?></td>
-                            <td><?php echo htmlspecialchars($gender); ?></td>
-                            <td><?php echo htmlspecialchars($tot_beds); ?></td>
-                            <td><?php echo htmlspecialchars($free_beds); ?></td>
+                            <td><?php echo htmlspecialchars($hos_id ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($gender ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($tot_beds ?? 0); ?></td>
+                            <td><?php echo htmlspecialchars($free_beds ?? 0); ?></td>
                             <!--<td><a href="edithostel.php?hos_id=<?php echo $hos_id ?>"><i class="fa fa-pencil-square-o btn edit-icon"></i></a></td>-->
                         </tr>
                         <?php       
