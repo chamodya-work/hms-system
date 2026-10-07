@@ -158,13 +158,29 @@ if (isset($_POST['export']) && $_POST['export'] == '1') {
 
     // Headers for CSV download
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="hostel_applications_'.date('Ymd').'.csv"');
+    // header('Content-Disposition: attachment; filename="hostel_applications_'.date('Ymd').'.csv"');
+    
+    
+    // Build a descriptive filename using the filter values
+    $year_safe   = str_replace('/', '-', $year_str);                       // 2023/2024 → 2023-2024
+    $course_safe = str_replace(' ', '_', $course_display);                 // spaces → underscores
+    $gender_label = ($_POST['gender'] == 'm') ? 'Male' : 'Female';
+    $filename = "Hostel_Applications_{$year_safe}_{$course_safe}_B{$_POST['batch']}_{$gender_label}_" . date('Ymd') . ".csv";
+
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: max-age=0');
 
     // Open output stream
     $output = fopen('php://output', 'w');
     // Add BOM for UTF-8 (Excel compatibility)
     fwrite($output, "\xEF\xBB\xBF");
+
+     // ===== FILTER INFO HEADER =====
+    fputcsv($output, ['Academic Year', $year_str]);
+    fputcsv($output, ['Course', $course_display]);
+    fputcsv($output, ['Batch', $_POST['batch']]);
+    fputcsv($output, ['Gender', ($_POST['gender'] == 'm' ? 'Male' : 'Female')]);
+    fputcsv($output, []); // blank row for separation
 
     // Header row
     fputcsv($output, ['#', 'Student No', 'Name', 'Contact', 'Distance (km)', 'Total Income (Rs.)', 'Medical', 'Siblings', 'Eligibility']);
