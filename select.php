@@ -342,15 +342,29 @@ $debug = false;
             $course_display = "Bachelor of Science Honours in Occupational Therapy";
         }
 
-        $hostel = "SELECT r.stureg_id, r.studentno, r.distance, (r.m_totincome + r.f_totincome + r.g_totincome) AS totincome, r.medical, r.med_cat, r.siblings, r.m_paysheet_tmp, r.f_paysheet_tmp, r.income_certificate_tmp, r.eligibility 
-                    FROM registration r 
-                    WHERE r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' 
-                    AND r.batch = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' 
-                    AND r.course = '" . mysqli_real_escape_string($conn, $course_display) . "' 
-                    AND r.gender = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "' 
-                    AND (r.admit IS NULL OR r.admit = '0') 
-                    AND r.stureg_id = ( SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno ) ";
+        // $hostel = "SELECT r.stureg_id, r.studentno, r.distance, (r.m_totincome + r.f_totincome + r.g_totincome) AS totincome, r.medical, r.med_cat, r.siblings, r.m_paysheet_tmp, r.f_paysheet_tmp, r.income_certificate_tmp, r.eligibility 
+        //             FROM registration r 
+        //             WHERE r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' 
+        //             AND r.batch = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' 
+        //             AND r.course = '" . mysqli_real_escape_string($conn, $course_display) . "' 
+        //             AND r.gender = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "' 
+        //             AND (r.admit IS NULL OR r.admit = '0') 
+        //             AND r.stureg_id = ( SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno ) ";
 
+        $hostel = "SELECT r.stureg_id, r.studentno, r.distance,
+                  (r.m_totincome + r.f_totincome + r.g_totincome) AS totincome,
+                  r.medical, r.med_cat, r.med_file,
+                  r.siblings,
+                  r.m_paysheet, r.f_paysheet, r.income_certificate,
+                  r.eligibility
+           FROM registration r
+           WHERE r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "'
+             AND r.batch         = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "'
+             AND r.course        = '" . mysqli_real_escape_string($conn, $course_display) . "'
+             AND r.gender        = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'
+             AND (r.admit IS NULL OR r.admit = '0')
+             AND r.stureg_id = ( SELECT MAX(stureg_id) FROM registration WHERE studentno = r.studentno ) ";
+        
         if (!empty($_POST['filterOptions'])) {
             switch ($_POST['filterOptions']) {
                 case 'income':      $hostel .= " ORDER BY totincome"; break;
@@ -395,17 +409,40 @@ $debug = false;
                     <tbody>
                         <?php
                         $i = 0;
+                        // while ($hostel_raw = mysqli_fetch_assoc($hostel_sql)) {
+                        //     $stureg_id = $hostel_raw['stureg_id'];
+                        //     $studentno = $hostel_raw['studentno'];
+                        //     $distance = $hostel_raw['distance'];
+                        //     $medical = ($hostel_raw['medical'] == 1) ? "Yes, " . $hostel_raw['med_cat'] : "-";
+                        //     $siblings = ($hostel_raw['siblings'] == 1) ? "Yes" : "-";
+                        //     $totincome = $hostel_raw['totincome'];
+                        //     $eligibility = $hostel_raw['eligibility'];
+                        //     $m_pay = $hostel_raw['m_paysheet_tmp'];
+                        //     $f_pay = $hostel_raw['f_paysheet_tmp'];
+                        //     $income_cert = $hostel_raw['income_certificate_tmp'];
+                        //     $i++;
+
                         while ($hostel_raw = mysqli_fetch_assoc($hostel_sql)) {
-                            $stureg_id = $hostel_raw['stureg_id'];
-                            $studentno = $hostel_raw['studentno'];
-                            $distance = $hostel_raw['distance'];
-                            $medical = ($hostel_raw['medical'] == 1) ? "Yes, " . $hostel_raw['med_cat'] : "-";
-                            $siblings = ($hostel_raw['siblings'] == 1) ? "Yes" : "-";
-                            $totincome = $hostel_raw['totincome'];
+                            $stureg_id   = $hostel_raw['stureg_id'];
+                            $studentno   = $hostel_raw['studentno'];
+                            $distance    = $hostel_raw['distance'];
+                            $totincome   = $hostel_raw['totincome'];
                             $eligibility = $hostel_raw['eligibility'];
-                            $m_pay = $hostel_raw['m_paysheet_tmp'];
-                            $f_pay = $hostel_raw['f_paysheet_tmp'];
-                            $income_cert = $hostel_raw['income_certificate_tmp'];
+
+                            // Medical
+                            $medical = ($hostel_raw['medical'] == 1)
+                                        ? "Yes" . ($hostel_raw['med_cat'] ? ", " . $hostel_raw['med_cat'] : "")
+                                        : "No";
+                            $med_file = $hostel_raw['med_file'];
+
+                            // Siblings
+                            $siblings = ($hostel_raw['siblings'] == 1) ? "Yes" : "No";
+
+                            // Files
+                            $m_pay       = $hostel_raw['m_paysheet'];
+                            $f_pay       = $hostel_raw['f_paysheet'];
+                            $income_cert = $hostel_raw['income_certificate'];
+
                             $i++;
                         ?>
                             <tr>
@@ -415,12 +452,21 @@ $debug = false;
                                 </td>
                                 <td><?php echo $distance; ?> km</td>
                                 <td style="text-align:right;"><?php echo number_format($totincome, 2, '.', ','); ?></td>
-                                <td><?php echo $medical; ?></td>
+                                <td style="vertical-align:top;">
+                                    <?php if (!empty($med_file)): ?>
+                                        <a target="_blank"
+                                        href="mail/tmp_files/<?php echo htmlspecialchars($med_file); ?>">
+                                        Med File</a>
+                                    <?php else: ?>
+                                        No
+                                    <?php endif; ?>
+                                </td>
                                 <td><?php echo $siblings; ?></td>
                                 <td>
-                                    <?php if ($m_pay) echo "<a target='_blank' href='https://hosmed.kln.ac.lk/mail/tmp_files/$m_pay'>Mother's paysheet</a><br>"; ?>
-                                    <?php if ($f_pay) echo "<a target='_blank' href='https://hosmed.kln.ac.lk/mail/tmp_files/$f_pay'>Father's paysheet</a><br>"; ?>
-                                    <?php if ($income_cert) echo "<a target='_blank' href='https://hosmed.kln.ac.lk/mail/tmp_files/$income_cert'>Grama Niladari Certificate</a>"; ?>
+                                    <?php if (!empty($m_pay))       echo "<a target='_blank' href='mail/tmp_files/".htmlspecialchars($m_pay)."'>Mother's paysheet</a><br>"; ?>
+                                    <?php if (!empty($f_pay))       echo "<a target='_blank' href='mail/tmp_files/".htmlspecialchars($f_pay)."'>Father's paysheet</a><br>"; ?>
+                                    <?php if (!empty($income_cert)) echo "<a target='_blank' href='mail/tmp_files/".htmlspecialchars($income_cert)."'>Grama Niladari Certificate</a>"; ?>
+                                    <?php if (empty($m_pay) && empty($f_pay) && empty($income_cert)) echo "-"; ?>
                                 </td>
                                 <td>
                                     <input type="checkbox" value="1" name="eligibility<?php echo $i; ?>" <?php echo ($eligibility == 1) ? 'checked' : ''; ?>>
