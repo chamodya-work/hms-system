@@ -593,7 +593,7 @@ if (isset($_POST['publish']) && $_POST['publish'] == '1') {
     }
 
     $email2 = '';
-    $hostel2 = "SELECT `email` FROM `registration` WHERE `eligibility` = '0' AND `applying_acayr` = '" . mysqli_real_escape_string($conn, $year_str) . "' AND `course` = '" . mysqli_real_escape_string($conn, $_POST['course']) . "' AND `batch` = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' AND `gender` = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'";
+    $hostel2 = "SELECT `email` FROM `registration` WHERE (`eligibility` = '0' OR `eligibility` IS NULL) AND `applying_acayr` = '" . mysqli_real_escape_string($conn, $year_str) . "' AND `course` = '" . mysqli_real_escape_string($conn, $_POST['course']) . "' AND `batch` = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' AND `gender` = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "'";
     $hostel_sql2 = mysqli_query($conn, $hostel2);
     if (mysqli_num_rows($hostel_sql2) > 0) {
         while ($row = mysqli_fetch_assoc($hostel_sql2)) {
@@ -604,11 +604,13 @@ if (isset($_POST['publish']) && $_POST['publish'] == '1') {
 
     $sent_count = 0;
     if (!empty($email1)) {
-        api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
+        // api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
+        api_sendMail($email1, "", "Hostel Alerts", "You are eligible for hostel accommodation. Kindly proceed with the payment of the hostel fee amounting to Rs. 1,100.00. Please make the payment to the Shroff and upload your receipt through the Hostel Management System (HMS).");
         $sent_count++;
     }
     if (!empty($email2)) {
-        api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
+        // api_sendMail("chamodyarajapaksha1@gmail.com", "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
+        api_sendMail($email2, "", "Hostel Alerts", "Sorry, you are not eligible for hostel accommodation.");
         $sent_count++;
     }
 
