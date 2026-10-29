@@ -12,16 +12,13 @@ include("connection/connect.php");
 date_default_timezone_set("Asia/Colombo");
 
 // =========================================================================
-// 1. INITIALIZE POST VARIABLES (to avoid undefined warnings)
+// 1. INITIALIZE POST VARIABLES
 // =========================================================================
 if (!isset($_POST['acayr']))   $_POST['acayr'] = '';
 if (!isset($_POST['course']))  $_POST['course'] = '';
 if (!isset($_POST['batch']))   $_POST['batch'] = '';
 if (!isset($_POST['gender']))  $_POST['gender'] = '';
 
-// =========================================================================
-// 2. RESTORE STATE AFTER REDIRECT (session restoration)
-// =========================================================================
 if (isset($_SESSION['keep_post'])) {
     $_POST['acayr']   = $_SESSION['keep_post']['acayr']   ?? '';
     $_POST['course']  = $_SESSION['keep_post']['course']  ?? '';
@@ -30,27 +27,99 @@ if (isset($_SESSION['keep_post'])) {
     unset($_SESSION['keep_post']);
 }
 
+// Convert acayr ID to year string
+$year_str = '';
+if (!empty($_POST['acayr'])) {
+    $lookup = "SELECT academic_year FROM academic_year WHERE id = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "'";
+    $res = mysqli_query($conn, $lookup);
+    if ($row = mysqli_fetch_assoc($res)) {
+        $year_str = $row['academic_year'];
+    }
+}
+
 // =========================================================================
-// 3. PROCESS FORM SUBMISSION – NO studreg_bed; update registration directly
+// 2. AJAX UNASSIGN BED LOGIC (UPDATED TO RETURN JSON)
+// =========================================================================
+if (isset($_POST['ajax_unassign_bed'])) {
+    $bed_id = intval($_POST['ajax_unassign_bed']);
+    
+    // 1. Get the student details BEFORE unassigning
+    $student_res = mysqli_query($conn, "SELECT stureg_id, studentno FROM registration WHERE bed_id = '$bed_id'");
+    $student = mysqli_fetch_assoc($student_res);
+    $stu_id = $student['stureg_id'] ?? 0;
+    $stu_no = $student['studentno'] ?? '';
+
+    // 2. Remove bed assignment from student & free the bed
+    mysqli_query($conn, "UPDATE registration SET bed_id = NULL WHERE bed_id = '$bed_id'");
+    mysqli_query($conn, "UPDATE hostel_bed SET availability = '1' WHERE bed_id = '$bed_id'");
+
+    // Get filter data for regenerating dropdown
+    $acayr = mysqli_real_escape_string($conn, $_POST['acayr'] ?? '');
+    $course = mysqli_real_escape_string($conn, $_POST['course'] ?? '');
+    $batch = mysqli_real_escape_string($conn, $_POST['batch'] ?? '');
+    $gender = mysqli_real_escape_string($conn, $_POST['gender'] ?? '');
+
+    $year_str_ajax = $acayr;
+    if (is_numeric($acayr)) {
+        $res = mysqli_query($conn, "SELECT academic_year FROM academic_year WHERE id = '$acayr'");
+        if ($row = mysqli_fetch_assoc($res)) $year_str_ajax = $row['academic_year'];
+    }
+
+    $course_display = $course;
+    if ($course == "SHS") $course_display = "Bachelor of Science Honours in Speech and Language Therapy";
+    elseif ($course == "OT") $course_display = "Bachelor of Science Honours in Occupational Therapy";
+
+    // Generate the new dropdown HTML
+    $html = '<select class="form-control bed-dropdown" id="' . $bed_id . '" name="' . $bed_id . '">';
+    $html .= '<option value="">----</option>';
+    
+    $eligible_query = "SELECT stureg_id, studentno FROM registration 
+                       WHERE applying_acayr = '$year_str_ajax' 
+                       AND course = '$course_display' 
+                       AND batch = '$batch' 
+                       AND gender = '$gender' 
+                       AND admit = '1' 
+                       AND eligibility = '1'
+                       AND (bed_id IS NULL OR bed_id = 0)
+                       ORDER BY studentno";
+    $eligible_sql = mysqli_query($conn, $eligible_query);
+    while ($eligible = mysqli_fetch_assoc($eligible_sql)) {
+        $html .= "<option value='{$eligible['stureg_id']}'>{$eligible['studentno']}</option>";
+    }
+    $html .= '</select>';
+
+    // Return JSON response
+    echo json_encode([
+        'html' => $html,
+        'stu_id' => $stu_id,
+        'stu_no' => $stu_no
+    ]);
+    exit; // Stop script execution for AJAX
+}
+
+// =========================================================================
+// 3. SAVE BED ASSIGNMENT LOGIC
 // =========================================================================
 if (isset($_POST['reghos'])) {
     $add_sql1 = '';
+    $assigned_students = []; 
 
-    // Get all available beds
     $bedno = "SELECT `bed_id` FROM `hostel_bed` WHERE `availability` = 1; ";
     $bedno_sql = mysqli_query($conn, $bedno);
 
     while ($bedno_raw = mysqli_fetch_assoc($bedno_sql)) {
         $bed_id = $bedno_raw['bed_id'];
 
-        // If a student was selected for this bed (the dropdown is named by bed_id)
         if (isset($_POST[$bed_id]) && $_POST[$bed_id] != '') {
             $stu = $_POST[$bed_id];
 
-            // Update registration: assign bed and mark as admitted (admit = 1)
-            // Also free the bed in hostel_bed
-            $add_sql1 .= "UPDATE `registration` SET `bed_id` = '$bed_id', `admit` = '1' WHERE `stureg_id` = '$stu'; ";
-            $add_sql1 .= "UPDATE `hostel_bed` SET `availability`='0' WHERE `bed_id`='$bed_id'; ";
+            // Prevent assigning the same student to two beds in one save
+            if (!in_array($stu, $assigned_students)) {
+                $assigned_students[] = $stu;
+
+                $add_sql1 .= "UPDATE `registration` SET `bed_id` = '$bed_id', `admit` = '1' WHERE `stureg_id` = '$stu'; ";
+                $add_sql1 .= "UPDATE `hostel_bed` SET `availability`='0' WHERE `bed_id`='$bed_id'; ";
+            }
         }
     }
 
@@ -58,7 +127,6 @@ if (isset($_POST['reghos'])) {
         $run_add = mysqli_multi_query($conn, $add_sql1);
         if ($run_add) {
             $_SESSION['success_msg'] = "Hostel details have been successfully updated!";
-            // Save filter states for reload
             $_SESSION['keep_post'] = [
                 'acayr'  => $_POST['acayr']  ?? '',
                 'course' => $_POST['course'] ?? '',
@@ -78,38 +146,38 @@ if (isset($_POST['reghos'])) {
 <div class="container">
     <h2 class="text-center"><br>Room Admission</h2><br><br>
 
-    <!--Form starts here-->
     <form id="addhostel" action="" method="post" class="main-form needs-validation" novalidate>
         <div class="form-row">
-            <!-- Academic Year -->
+            <!-- Filters (Academic Year, Course, Batch, Gender) -->
             <div class="form-group col-md-3">
                 <label for="acayr">Academic Year:</label>
                 <select class="form-control" id="acayr" name="acayr" onchange="this.form.submit()">
                     <option value="">--Select Academic Year--</option>
                     <?php
-                    $acayr_query = "SELECT academic_year, id FROM academic_year";
+                    $acayr_query = "SELECT MAX(hr.acayr) AS acayr, ay.academic_year 
+                                    FROM hostel_reg hr
+                                    INNER JOIN academic_year ay ON hr.acayr = ay.id
+                                    WHERE hr.acayr != '0'
+                                    GROUP BY ay.academic_year
+                                    ORDER BY ay.academic_year DESC";
                     $acayr_sql = mysqli_query($conn, $acayr_query);
                     while ($row = mysqli_fetch_assoc($acayr_sql)) {
-                        $aacayr = $row['id'];
+                        $aacayr = $row['acayr'];
                         $academic_year = $row['academic_year'];
-                        $selected = ($_POST['acayr'] == $academic_year) ? 'selected' : '';
-                        echo "<option value='$academic_year' $selected>$academic_year</option>";
+                        $selected = ($_POST['acayr'] == $aacayr) ? 'selected' : '';
+                        echo "<option value='$aacayr' $selected>$academic_year</option>";
                     }
                     ?>
                 </select>
             </div>
 
-            <!-- Course – using IN to handle possible duplicate IDs for same academic year -->
-            <?php if (!empty($_POST['acayr'])): ?>
+            <?php if (!empty($_POST['acayr']) && !empty($year_str)): ?>
                 <div class="form-group col-md-3">
                     <label for="course">Course:</label>
                     <select class="form-control" id="course" name="course" onchange="this.form.submit()">
                         <option value="">--Select Course--</option>
                         <?php
-                        // CHANGED: use IN instead of = for acayr (acayr is academic_year.id)
-                        $course_query = "SELECT course FROM hostel_reg 
-                                         WHERE acayr IN (SELECT id FROM academic_year WHERE academic_year = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "') 
-                                         GROUP BY course ORDER BY course";
+                        $course_query = "SELECT DISTINCT course FROM registration WHERE applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' ORDER BY course";
                         $course_sql = mysqli_query($conn, $course_query);
                         while ($row = mysqli_fetch_assoc($course_sql)) {
                             $acourse = $row['course'];
@@ -121,18 +189,13 @@ if (isset($_POST['reghos'])) {
                 </div>
             <?php endif; ?>
 
-            <!-- Batch – also using IN -->
-            <?php if (!empty($_POST['acayr']) && !empty($_POST['course'])): ?>
+            <?php if (!empty($_POST['acayr']) && !empty($_POST['course']) && !empty($year_str)): ?>
                 <div class="form-group col-md-3">
                     <label for="batch">Batch:</label>
                     <select class="form-control" id="batch" name="batch" onchange="this.form.submit()">
                         <option value="">--Select Batch--</option>
                         <?php
-                        // CHANGED: use IN
-                        $batch_query = "SELECT batch FROM hostel_reg 
-                                        WHERE acayr IN (SELECT id FROM academic_year WHERE academic_year = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "') 
-                                        AND course='" . mysqli_real_escape_string($conn, $_POST['course']) . "' 
-                                        ORDER BY batch";
+                        $batch_query = "SELECT DISTINCT batch FROM registration WHERE applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' AND course = '" . mysqli_real_escape_string($conn, $_POST['course']) . "' ORDER BY batch";
                         $batch_sql = mysqli_query($conn, $batch_query);
                         while ($row = mysqli_fetch_assoc($batch_sql)) {
                             $abatch = $row['batch'];
@@ -144,7 +207,6 @@ if (isset($_POST['reghos'])) {
                 </div>
             <?php endif; ?>
 
-            <!-- Gender -->
             <?php if (!empty($_POST['acayr']) && !empty($_POST['course']) && !empty($_POST['batch'])): ?>
                 <div class="form-group col-md-3">
                     <label for="gender">Gender:</label>
@@ -170,7 +232,10 @@ if (isset($_POST['reghos'])) {
                         </thead>
                         <tbody>
                             <?php
-                            // Get hostels for the selected gender
+                            $course_display = $_POST['course'];
+                            if ($_POST['course'] == "SHS") $course_display = "Bachelor of Science Honours in Speech and Language Therapy";
+                            elseif ($_POST['course'] == "OT") $course_display = "Bachelor of Science Honours in Occupational Therapy";
+                            
                             $hostel_query = "SELECT `hos_id`, hos_floors FROM `hostel` WHERE hos_id != '0' AND gender = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "' ORDER BY hos_id ASC";
                             $hostel_sql = mysqli_query($conn, $hostel_query);
 
@@ -183,16 +248,22 @@ if (isset($_POST['reghos'])) {
                                         <input type="text" class="form-control" name="<?php echo $hos_id; ?>" value="<?php echo $hos_id; ?>" readonly>
                                     </td>
                                     <?php
-                                    // Loop through each floor
                                     for ($floor = 0; $floor < $floors; $floor++) {
-                                        echo '<td><h6><b>Floor ' . $floor . '</b></h6>';
+                                        echo '<td style="vertical-align: top; min-width: 250px;"><h6><b>Floor ' . $floor . '</b></h6>';
+                                        
+                                        // $beds_query = "SELECT r.room_no, r.reserved, r.remark, COUNT(b.bed_id) AS totbeds
+                                        //                FROM hostel_room AS r
+                                        //                LEFT JOIN hostel_bed AS b ON r.hos_id = b.hos_id AND r.floor_no = b.floor_no AND r.room_no = b.room_no
+                                        //                WHERE r.hos_id = '$hos_id' AND r.floor_no = '$floor'
+                                        //                GROUP BY r.room_no, r.reserved";
 
-                                        // Get rooms on this floor
                                         $beds_query = "SELECT r.room_no, r.reserved, r.remark, COUNT(b.bed_id) AS totbeds
-                                                       FROM hostel_room AS r
-                                                       LEFT JOIN hostel_bed AS b ON r.hos_id = b.hos_id AND r.floor_no = b.floor_no AND r.room_no = b.room_no
-                                                       WHERE r.hos_id = '$hos_id' AND r.floor_no = '$floor'
-                                                       GROUP BY r.room_no, r.reserved";
+                                                        FROM hostel_room AS r
+                                                        LEFT JOIN hostel_bed AS b ON r.hos_id = b.hos_id AND r.floor_no = b.floor_no AND r.room_no = b.room_no
+                                                        WHERE r.hos_id = '$hos_id' AND r.floor_no = '$floor'
+                                                        GROUP BY r.room_no, r.reserved
+                                                        ORDER BY CAST(r.room_no AS UNSIGNED) ASC";
+
                                         $beds_sql = mysqli_query($conn, $beds_query);
 
                                         echo "<table>";
@@ -206,29 +277,31 @@ if (isset($_POST['reghos'])) {
                                                 <td>
                                                     <?php if ($reserved == 0): ?>
                                                         <?php
-                                                        // Get beds for this room
                                                         $bed_query = "SELECT hb.bed_id, hb.availability, r.studentno, r.applying_acayr 
-                                                                      FROM hostel_bed hb 
-                                                                      LEFT JOIN registration r ON hb.bed_id = r.bed_id AND (r.applying_acayr = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "' OR r.applying_acayr IS NULL) 
-                                                                      WHERE hb.hos_id = '$hos_id' AND hb.floor_no = '$floor' AND hb.room_no = '$room_id'";
+                                                                    FROM hostel_bed hb 
+                                                                    LEFT JOIN registration r ON hb.bed_id = r.bed_id AND (r.applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "' OR r.applying_acayr IS NULL) 
+                                                                    WHERE hb.hos_id = '$hos_id' AND hb.floor_no = '$floor' AND hb.room_no = '$room_id'";
                                                         $bed_sql = mysqli_query($conn, $bed_query);
+                                                        
                                                         while ($bed = mysqli_fetch_assoc($bed_sql)) {
                                                             $bed_id = $bed['bed_id'];
                                                             $availability = $bed['availability'];
-                                                            $stuno = $bed['studentno'];
+                                                            
                                                             if ($availability == 1) {
                                                                 ?>
-                                                                <!-- Available bed – show dropdown of eligible students -->
-                                                                <select class="form-control" id="<?php echo $bed_id; ?>" name="<?php echo $bed_id; ?>">
+                                                                <!-- Available Bed -->
+                                                                <select class="form-control bed-dropdown" id="<?php echo $bed_id; ?>" name="<?php echo $bed_id; ?>">
                                                                     <option value="">----</option>
                                                                     <?php
                                                                     $eligible_query = "SELECT `stureg_id`, `studentno` FROM `registration` 
-                                                                                       WHERE `applying_acayr` = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "' 
-                                                                                       AND `course` = '" . mysqli_real_escape_string($conn, $_POST['course']) . "' 
-                                                                                       AND `batch` = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' 
-                                                                                       AND `gender` = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "' 
-                                                                                       AND `admit` = '0' 
-                                                                                       ORDER BY studentno";
+                                                                                    WHERE `applying_acayr` = '" . mysqli_real_escape_string($conn, $year_str) . "' 
+                                                                                    AND `course` = '" . mysqli_real_escape_string($conn, $course_display) . "' 
+                                                                                    AND `batch` = '" . mysqli_real_escape_string($conn, $_POST['batch']) . "' 
+                                                                                    AND `gender` = '" . mysqli_real_escape_string($conn, $_POST['gender']) . "' 
+                                                                                    AND `admit` = '1' 
+                                                                                    AND `eligibility` = '1'
+                                                                                    AND (`bed_id` IS NULL OR `bed_id` = 0)
+                                                                                    ORDER BY studentno";
                                                                     $eligible_sql = mysqli_query($conn, $eligible_query);
                                                                     while ($eligible = mysqli_fetch_assoc($eligible_sql)) {
                                                                         $stureg_id = $eligible['stureg_id'];
@@ -240,16 +313,17 @@ if (isset($_POST['reghos'])) {
                                                                 </select>
                                                                 <?php
                                                             } else {
-                                                                // Bed is already occupied – retrieve the assigned student from registration
-                                                                // CHANGED: removed studreg_bed, use registration.bed_id directly
-                                                                $assigned_query = "SELECT studentno 
-                                                                                   FROM registration 
-                                                                                   WHERE bed_id = '$bed_id' 
-                                                                                   AND applying_acayr = '" . mysqli_real_escape_string($conn, $_POST['acayr']) . "'";
+                                                                // Occupied Bed
+                                                                $assigned_query = "SELECT studentno FROM registration WHERE bed_id = '$bed_id' AND applying_acayr = '" . mysqli_real_escape_string($conn, $year_str) . "'";
                                                                 $assigned_sql = mysqli_query($conn, $assigned_query);
                                                                 $assigned = mysqli_fetch_assoc($assigned_sql);
                                                                 $studentno_assigned = $assigned['studentno'] ?? '';
-                                                                echo "<input type='text' class='form-control' value='$studentno_assigned' disabled />";
+                                                                ?>
+                                                                <div id="bed-container-<?php echo $bed_id; ?>" style="display:flex; gap:5px;">
+                                                                    <input type="text" class="form-control" value="<?php echo $studentno_assigned; ?>" disabled />
+                                                                    <button type="button" class="btn btn-danger btn-sm" onclick="unassignBed(<?php echo $bed_id; ?>, '<?php echo $studentno_assigned; ?>')" title="Unassign Bed"><i class="fa fa-times"></i></button>
+                                                                </div>
+                                                                <?php
                                                             }
                                                         }
                                                         ?>
@@ -283,17 +357,94 @@ if (isset($_POST['reghos'])) {
 
 <!-- JavaScript -->
 <script>
-    var form = document.querySelector('.needs-validation');
-    form.addEventListener('submit', function (event) {
-        if (form.checkValidity() === false) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        form.classList.add('was-validated');
-    })
-    var today = new Date().toISOString().split('T')[0];
-    document.getElementsByName("rego")[0].setAttribute('min', today);
-    document.getElementsByName("regc")[0].setAttribute('min', today);
+    // 1. Function to hide selected students from other dropdowns
+    function updateDropdowns() {
+        const dropdowns = document.querySelectorAll('.bed-dropdown');
+        const selectedValues = [];
+        
+        // Gather all currently selected student IDs
+        dropdowns.forEach(select => {
+            if (select.value !== "") {
+                selectedValues.push(select.value);
+            }
+        });
+
+        // Hide options that are selected elsewhere
+        dropdowns.forEach(select => {
+            const options = select.options;
+            for (let i = 0; i < options.length; i++) {
+                const option = options[i];
+                if (option.value === "") continue;
+                
+                if (selectedValues.includes(option.value) && select.value !== option.value) {
+                    option.hidden = true; 
+                } else {
+                    option.hidden = false; 
+                }
+            }
+        });
+    }
+
+    // 2. AJAX Unassign Function
+    function unassignBed(bedId, studentName) {
+        if (!confirm('Are you sure you want to unassign ' + studentName + ' from this bed?')) return;
+
+        const formData = new URLSearchParams();
+        formData.append('ajax_unassign_bed', bedId);
+        formData.append('acayr', document.getElementById('acayr').value);
+        formData.append('course', document.getElementById('course').value);
+        formData.append('batch', document.getElementById('batch').value);
+        formData.append('gender', document.getElementById('gender').value);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Replace the grey box with the new dropdown
+            const container = document.getElementById('bed-container-' + bedId);
+            container.outerHTML = data.html;
+
+            // Add the newly unassigned student to ALL other dropdowns (if they don't exist)
+            if (data.stu_id > 0) {
+                document.querySelectorAll('.bed-dropdown').forEach(select => {
+                    if (select.id !== bedId.toString()) {
+                        let exists = false;
+                        for (let i = 0; i < select.options.length; i++) {
+                            if (select.options[i].value === data.stu_id.toString()) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                        if (!exists) {
+                            select.add(new Option(data.stu_no, data.stu_id));
+                        }
+                    }
+                });
+            }
+
+            // Attach event listener to new dropdown
+            const newSelect = document.getElementById(bedId);
+            newSelect.addEventListener('change', updateDropdowns);
+
+            // Update visibility
+            updateDropdowns();
+        })
+        .catch(error => {
+            console.error(error);
+            alert('Error unassigning bed. Please try again.');
+        });
+    }
+
+    // 3. Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.bed-dropdown').forEach(select => {
+            select.addEventListener('change', updateDropdowns);
+        });
+        updateDropdowns();
+    });
 </script>
 </body>
 </html>

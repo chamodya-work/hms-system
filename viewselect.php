@@ -2,6 +2,37 @@
 // Initialize the session
 session_start();
 
+// ADD THIS LINE: Include database connection
+include("connection/connect.php");
+
+// ===== SEND REMINDER EMAIL LOGIC =====
+if (isset($_POST['remind_id']) && !empty($_POST['remind_id'])) {
+    $remind_id = intval($_POST['remind_id']);
+    
+    // Fetch student details from the database
+    $sql_fetch = "SELECT studentno, email FROM registration WHERE stureg_id = '$remind_id'";
+    $res_fetch = mysqli_query($conn, $sql_fetch);
+    
+    if ($row = mysqli_fetch_assoc($res_fetch)) {
+        $stu_no = $row['studentno'];
+        $email = $row['email'];
+        
+        // Include the Gmail API script
+        require 'mail/gmail_api.php';
+        
+        // Send the email (You can customize the message)
+        $subject = "Hostel Payment Reminder";
+        $message = "Dear $stu_no, \n\nThis is a reminder to complete your hostel fee payment of Rs. 1,100.00. Please upload your payment receipt to the Hostel Management System (HMS) as soon as possible.\n\nThank you.";
+        
+        // api_sendMail($email, "", $subject, $message);
+
+        //this is tested email change it to live email address when sending to students
+        api_sendMail("chamodyarajapaksha1@gmail.com", "", $subject, $message);
+        
+        echo "<script>alert('Reminder email sent successfully to $stu_no!');</script>";
+    }
+}
+
 // Check if the user is logged in
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
     header("location: account/login.php");
@@ -183,6 +214,14 @@ $save_sql = '';
                                     <?php else: ?>
                                         <span class="badge badge-danger">Unpaid</span>
                                     <?php endif; ?>
+
+                                    <br>
+    
+                                    <!-- Add the checkbox right below the badge -->
+                                    <label style="font-size: 12px; cursor: pointer; margin-top: 5px;">
+                                        <input type="checkbox" value="1" name="payment<?php echo $i; ?>" <?php echo ($payment == 1) ? 'checked' : ''; ?>> 
+                                        Tick to mark as Paid
+                                    </label>
                                 </td>
                                 <td>
                                     <?php if (!empty($payslip)): ?>
@@ -195,9 +234,9 @@ $save_sql = '';
                                     <input type="checkbox" value="1" id="admit<?php echo $i; ?>" name="admit<?php echo $i; ?>" <?php echo ($admit == 1) ? 'checked' : ''; ?>>
                                 </td>
                                 <td>
-									<!-- this is only place holder now not send reminder emails -->
-                                    <button class="btn btn-success btn-sm" <?php echo ($payment == 1) ? 'disabled' : ''; ?>>
-										Send Reminder Email <i class="fa fa-envelope" style="color:white;padding:6px;"></i>
+                                    <!-- Added type="submit", name="remind_id", and value="stureg_id" -->
+                                    <button type="submit" class="btn btn-success btn-sm" name="remind_id" value="<?php echo $stureg_id; ?>" <?php echo ($payment == 1) ? 'disabled' : ''; ?> onclick="return confirm('Send payment reminder email to this student?');">
+                                        Send Reminder Email <i class="fa fa-envelope" style="color:white;padding:6px;"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -226,12 +265,20 @@ if (isset($_POST['save']) && $_POST['save'] == '1') {
     if (isset($rows) && $rows > 0) {
         $save_sql = '';
         for ($i = 1; $i <= $rows; $i++) {
+            // Get Admit Checkbox
             $ad = "admit" . $i;
             $admit = isset($_POST[$ad]) && $_POST[$ad] == 1 ? '1' : '0';
+            
+            // Get Payment Checkbox (NEW)
+            $pay_key = "payment" . $i;
+            $payment_val = isset($_POST[$pay_key]) && $_POST[$pay_key] == 1 ? '1' : '0';
+
             $si = "si" . $i;
             $stureg_id = isset($_POST[$si]) ? $_POST[$si] : 0;
+            
             if ($stureg_id > 0) {
-                $save_sql .= "UPDATE registration SET admit='$admit' WHERE stureg_id='$stureg_id';";
+                // Update BOTH admit and payment
+                $save_sql .= "UPDATE registration SET admit='$admit', payment='$payment_val' WHERE stureg_id='$stureg_id';";
             }
         }
         if (!empty($save_sql)) {
