@@ -28,11 +28,14 @@ if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
 					<select id="academicYearFilter" name="acayr_filter" class="form-control" onchange="document.getElementById('hoslist').submit();">
 						<option value="">-- Select Academic Year --</option>
 						<?php
-							$acYear_query = "SELECT id, academic_year FROM academic_year ORDER BY academic_year DESC";
+							// Fetch course as well
+							$acYear_query = "SELECT id, academic_year, course FROM academic_year ORDER BY academic_year DESC, course ASC";
 							$acYear_result = mysqli_query($conn, $acYear_query);
 							while($acYear_row = mysqli_fetch_assoc($acYear_result)) {
 								$selected = ($acYear_row['id'] == $selected_acayr) ? 'selected' : '';
-								echo "<option value='" . $acYear_row['id'] . "' $selected>" . $acYear_row['academic_year'] . "</option>";
+								
+								// Display Year and Course together
+								echo "<option value='" . $acYear_row['id'] . "' $selected>" . $acYear_row['academic_year'] . " - " . $acYear_row['course'] . "</option>";
 							}
 						?>
 					</select>
